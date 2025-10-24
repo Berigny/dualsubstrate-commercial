@@ -15,3 +15,4 @@ serde_json = "1.0"
 chrono = "0.4"
 rulinalg = "0.4"
 pyo3 = { version = "0.20", features = ["extension-module"] }
+nalgebra = { version = "0.32", features = ["std"] }

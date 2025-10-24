@@ -2,6 +2,8 @@
 
 mod centroid;
 mod msd;
+mod python;
+mod qp_encode;
 mod registry;
 
 use std::fs::OpenOptions;
@@ -221,5 +223,9 @@ fn core(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Ledger>()?;
     m.add_class::<LedgerEvent>()?;
     m.add_function(wrap_pyfunction!(py_anchor_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(python::py_pack_quaternion, m)?)?;
+    m.add_function(wrap_pyfunction!(python::py_unpack_quaternion, m)?)?;
+    m.add_function(wrap_pyfunction!(python::py_rotate_quaternion, m)?)?;
+    m.add_function(wrap_pyfunction!(python::py_energy_proxy, m)?)?;
     Ok(())
 }
