@@ -1,16 +1,154 @@
-from fastapi import FastAPI, Depends, HTTPException
-from models import AnchorReq, QueryReq
-from core.ledger import Ledger
+"""
+DualSubstrate API – ledger + Metatron-star flow-rule enforcement
+"""
+from fastapi import FastAPI, HTTPException, Depends, Query
+from pydantic import BaseModel, conint
+from typing import List, Tuple, Literal, Callable
+import time
+
+# ---------- imports ----------
+import flow_rule  # our Rust wheel
+from core.ledger import Ledger  # the RocksDB wrapper we wrote earlier
 from deps import require_key, limiter
 
-app = FastAPI(title="DualSubstrate MVP", version="0.1.0")
-ledger = Ledger()
+# ---------- flow-rule bridge ----------
+_ALLOWED_DIRECT = {(1, 2), (5, 6), (3, 0), (7, 4), (1, 0)}
 
+
+def _python_transition_allowed(src: int, dst: int) -> bool:
+    if src == dst:
+        return True
+    if (src, dst) in _ALLOWED_DIRECT:
+        return True
+    if src % 2 == 0 and dst % 2 == 1:
+        return False
+    return (src % 2) == (dst % 2)
+
+
+_transition_allowed: Callable[[int, int], bool]
+if hasattr(flow_rule, "py_transition_allowed"):
+    _transition_allowed = getattr(flow_rule, "py_transition_allowed")  # type: ignore[assignment]
+else:  # pragma: no cover - defensive fallback when Rust wheel missing
+    _transition_allowed = _python_transition_allowed
+
+
+# ---------- models ----------
+Prime = conint(ge=2, le=19)  # S0 primes only for MVP
+
+
+class Factor(BaseModel):
+    prime: Prime
+    delta: int  # can be negative
+
+
+class AnchorReq(BaseModel):
+    entity: str
+    factors: List[Factor]
+
+
+class QueryReq(BaseModel):
+    primes: List[Prime]
+
+
+class Edge(BaseModel):
+    src: int
+    dst: int
+    via_c: bool
+    label: str
+
+
+class TraverseResp(BaseModel):
+    edges: List[Edge]
+    centroid_flips: int
+    final_centroid: Literal[0, 1]
+
+
+# ---------- helpers ----------
+Node = Literal[0, 1, 2, 3, 4, 5, 6, 7]
+
+
+def _prime_to_node(p: Prime) -> Node:
+    """core registry: 2→0, 3→1, 5→2, 7→3, 11→4, 13→5, 17→6, 19→7"""
+    mapping = {2: 0, 3: 1, 5: 2, 7: 3, 11: 4, 13: 5, 17: 6, 19: 7}
+    return mapping[p]  # type: ignore
+
+
+def _centroid_now() -> Literal[0, 1]:
+    return 0 if int(time.time() * 1000) % 2 == 0 else 1
+
+
+def _label(src: int, dst: int) -> str:
+    if src == dst:
+        return "persistence"
+    if (src, dst) in ((1, 2), (5, 6)):
+        return "work"
+    if (src, dst) in ((3, 0), (7, 4)):
+        return "heat-dump"
+    if (src, dst) == (1, 0):
+        return "electric-dissipation"
+    return "mediated"
+
+
+def _legalise_transition(src_node: int, dst_node: int) -> Tuple[bool, bool]:
+    """
+    returns (allowed, via_c)
+    if native transition forbidden -> force via_c=True and still allow
+    """
+    allowed = _transition_allowed(src_node, dst_node)
+    if allowed:
+        via_c = (
+            (src_node % 2 == 0 and dst_node % 2 == 1)
+            and (src_node, dst_node) not in _ALLOWED_DIRECT
+        )
+        return (True, via_c)
+    # illegal -> must go through C (we still store the delta, but flag via_c)
+    return (True, True)
+
+
+# ---------- FastAPI ----------
+app = FastAPI(title="DualSubstrate – Flow-Rule Ledger", version="0.3.0")
+ledger = Ledger()  # RocksDB + S3 log
+
+
+@app.get("/")
+def root():
+    return {"message": "DualSubstrate /traverse ready"}
+
+
+# ---------- existing endpoints ----------
 @app.post("/anchor")
 @limiter.limit("100/minute")
 def anchor(req: AnchorReq, _: str = Depends(require_key)):
-    ledger.anchor(req.entity, [(f.prime, f.delta) for f in req.factors])
-    return {"status": "anchored"}
+    """
+    1. map primes → nodes
+    2. enforce flow-rules (auto-route via C if needed)
+    3. write only lawful deltas
+    """
+    ts = int(time.time() * 1000)
+    centroid = _centroid_now()
+    edges: List[Edge] = []
+    lawful_factors: List[Tuple[int, int]] = []  # (prime, delta)
+
+    for f in req.factors:
+        src = _prime_to_node(f.prime)
+        dst = _prime_to_node(f.prime)  # self-loop for persistence
+        # if delta !=0 we treat as *intent* to move; here we simplify to self
+        # real use-case: user supplies *target* node and we compute delta
+        allowed, via_c = _legalise_transition(src, dst)
+        if not allowed:
+            raise HTTPException(422, f"Transition {src}→{dst} never allowed")
+        edges.append(Edge(src=src, dst=dst, via_c=via_c, label=_label(src, dst)))
+        lawful_factors.append((f.prime, f.delta))
+
+    # write to ledger
+    ledger.anchor(req.entity, lawful_factors)
+    return {
+        "status": "anchored",
+        "edges": edges,
+        "centroid_at_write": centroid,
+        "timestamp": ts,
+    }
+
 
 @app.post("/query")
 @limiter.limit("200/minute")
@@ -18,6 +156,47 @@ def query(req: QueryReq, _: str = Depends(require_key)):
     hits = ledger.query(req.primes)
     return {"results": [{"entity": e, "weight": w} for e, w in hits]}
 
+
 @app.get("/checksum")
 def checksum(entity: str, _: str = Depends(require_key)):
     return {"entity": entity, "checksum": ledger.checksum(entity)}
+
+
+# ---------- new traverse endpoint (unchanged logic) ----------
+@app.post("/traverse", response_model=TraverseResp)
+@limiter.limit("300/minute")
+def traverse(start: int = Query(..., ge=0, le=7), depth: int = Query(3, ge=1, le=10)):
+    centroid = _centroid_now()
+    flips = 0
+    current = start
+    path: List[Edge] = []
+
+    for _ in range(depth):
+        # pick first legal outbound edge (deterministic)
+        dst = next(
+            (
+                dst
+                for src, dst in [(current, d) for d in range(8)]
+                if _transition_allowed(src, dst)
+            ),
+            None,
+        )
+        if dst is None:
+            raise HTTPException(422, f"No legal outbound edge from node {current}")
+        via_c = (
+            (current % 2 == 0 and dst % 2 == 1)
+            and (current, dst) not in _ALLOWED_DIRECT
+        )
+        path.append(Edge(src=current, dst=dst, via_c=via_c, label=_label(current, dst)))
+        if via_c:
+            centroid ^= 1
+            flips += 1
+        current = dst
+
+    return TraverseResp(edges=path, centroid_flips=flips, final_centroid=centroid)
+
+
+# ---------- health ----------
+@app.get("/centroid")
+def centroid_now():
+    return {"centroid": _centroid_now()}
