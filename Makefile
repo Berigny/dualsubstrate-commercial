@@ -9,7 +9,8 @@ grpc.gen:
 	  -I$(PROTO_DIR) \
 	  --python_out=$(GEN_PY) \
 	  --grpc_python_out=$(GEN_PY) \
-	  $(PROTO_DIR)/dualsubstrate/v1/ledger.proto
+	  $(PROTO_DIR)/dualsubstrate/v1/ledger.proto \
+	  $(PROTO_DIR)/dualsubstrate/v1/health.proto
 
 grpc.run:
 	python -m api.grpc_server

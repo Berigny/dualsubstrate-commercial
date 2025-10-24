@@ -53,12 +53,8 @@ message ScanResponse {
   repeated LedgerRow rows = 1;
 }
 
-message HealthRequest {}
-message HealthResponse { string status = 1; }
-
 // --------- Service ---------
 service DualSubstrate {
-  rpc Health(HealthRequest) returns (HealthResponse);
   rpc Rotate(QuaternionRequest) returns (QuaternionResponse);
   rpc Append(AppendRequest) returns (AppendResponse);
   rpc ScanPrefix(ScanRequest) returns (ScanResponse);

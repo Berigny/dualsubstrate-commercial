@@ -1,0 +1,12 @@
+version: "3.8"
+
+services:
+  api:
+    command: ["python", "-m", "api.grpc_server", "--tls-dir=/tls"]
+    environment:
+      GRPC_PORT: "50051"
+      GRPC_TLS_DIR: /tls
+    ports:
+      - "50051:50051"
+    volumes:
+      - ./tls:/tls:ro
