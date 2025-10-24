@@ -18,7 +18,7 @@ grpc.run:
 grpc.openapi:
 	mkdir -p $(OPENAPI_OUT)
 	docker run --rm -v $$(pwd):/work -w /work \
-	  ghcr.io/grpc-ecosystem/grpc-gateway:latest \
+	  ghcr.io/grpc-ecosystem/grpc-gateway:v2.19.0 \
 	  protoc -I . \
 	    --openapiv2_out=$(OPENAPI_OUT) \
 	    --openapiv2_opt=logtostderr=true \
