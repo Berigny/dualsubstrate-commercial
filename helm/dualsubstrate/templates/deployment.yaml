@@ -38,6 +38,8 @@ spec:
           ports:
             - name: grpc
               containerPort: {{ .Values.server.port }}
+            - name: metrics
+              containerPort: {{ default 9090 .Values.service.metricsPort }}
 {{- with .Values.livenessProbe }}
           livenessProbe:
 {{ toYaml . | indent 12 }}

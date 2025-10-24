@@ -3,3 +3,5 @@ grpcio-tools>=1.76
 grpcio-health-checking>=1.76
 grpcio-reflection>=1.76
 protobuf>=4.25,<7
+aiohttp>=3.9
+prometheus-client>=0.20

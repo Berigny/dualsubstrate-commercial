@@ -8,6 +8,7 @@ image:
 service:
   type: ClusterIP
   port: 50051
+  metricsPort: 9090
 
 server:
   port: 50051
@@ -38,3 +39,11 @@ readinessProbe:
     service: dualsubstrate.v1.Health
 
 resources: {}
+
+serviceMonitor:
+  enabled: true
+  port: metrics
+  path: /metrics
+  interval: 15s
+  labels:
+    release: kube-prometheus-stack

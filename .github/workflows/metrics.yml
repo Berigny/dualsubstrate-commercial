@@ -1,0 +1,28 @@
+name: Metrics Endpoint
+
+on:
+  push:
+    paths:
+      - "api/**"
+      - "ops/Dockerfile"
+      - "helm/**"
+      - "grafana/**"
+      - ".github/workflows/metrics.yml"
+  pull_request:
+
+jobs:
+  metrics:
+    runs-on: ubuntu-latest
+    env:
+      IMAGE: 'dualsubstrate-metrics:test'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build gRPC image
+        run: docker build -t "$IMAGE" -f ops/Dockerfile .
+      - name: Check metrics endpoint
+        run: |
+          timeout 5 docker run --rm -p 9090:9090 "$IMAGE" &
+          runner=$!
+          sleep 3
+          curl -f localhost:9090/metrics | grep -q grpc_server_handled_total
+          wait "$runner" || true
