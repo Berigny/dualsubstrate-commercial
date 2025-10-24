@@ -1,0 +1,14 @@
+[package]
+name = "flow_rule"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "flow_rule"
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+pyo3 = { version = "0.20", optional = true, features = ["extension-module"] }
+
+[features]
+python = ["pyo3"]

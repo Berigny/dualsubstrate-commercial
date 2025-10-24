@@ -5,6 +5,7 @@ Events: (entity_id, prime, delta_k, timestamp)
 import rocksdb, json, time, os
 from typing import Dict, List, Tuple
 from checksum import merkle_root
+from .flow_rule_bridge import validate_prime_sequence
 
 EVENT_LOG = os.getenv("EVENT_LOG_PATH", "/data/event.log")
 FACTORS_DB = "/data/factors"
@@ -25,9 +26,12 @@ class Ledger:
         ts = int(time.time()*1000)
         batch_f = rocksdb.WriteBatch()
         batch_p = rocksdb.WriteBatch()
-        for p, dk in factors:
+        check = validate_prime_sequence([p for p, _ in factors]) if factors else None
+        via_flags = check.via_centroid if check else []
+        for idx, (p, dk) in enumerate(factors):
             # 1) append event
-            evt = json.dumps({"e": entity, "p": p, "d": dk, "ts": ts})
+            via_c = via_flags[idx] if idx < len(via_flags) else False
+            evt = json.dumps({"e": entity, "p": p, "d": dk, "ts": ts, "via_c": via_c})
             self.log.write((evt+"\n").encode())
             # 2) update entity→factors
             old = self._get_factor(entity, p)
