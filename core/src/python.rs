@@ -4,22 +4,33 @@ use pyo3::prelude::*;
 use crate::qp_encode::QpQuat;
 
 #[pyfunction]
-pub fn py_pack_quaternion(exps: [i32; 8]) -> PyResult<([f32; 4], [f32; 4], f32)> {
+pub fn py_pack_quaternion(exps: [i32; 8]) -> PyResult<([f32; 4], [f32; 4], f32, f32)> {
     let q = QpQuat::pack(&exps);
-    let norm = exps.iter().map(|&x| (x as f32).powi(2)).sum::<f32>().sqrt();
-    let QpQuat { psi1, psi2 } = q;
+    let QpQuat {
+        psi1,
+        psi2,
+        psi1_norm,
+        psi2_norm,
+    } = q;
     let q1: [f32; 4] = psi1.coords.into();
     let q2: [f32; 4] = psi2.coords.into();
-    Ok((q1, q2, norm))
+    Ok((q1, q2, psi1_norm, psi2_norm))
 }
 
 #[pyfunction]
-pub fn py_unpack_quaternion(q1: [f32; 4], q2: [f32; 4], norm: f32) -> PyResult<[i32; 8]> {
+pub fn py_unpack_quaternion(
+    q1: [f32; 4],
+    q2: [f32; 4],
+    norm1: f32,
+    norm2: f32,
+) -> PyResult<[i32; 8]> {
     let qp = QpQuat {
         psi1: Quaternion::new(q1[0], q1[1], q1[2], q1[3]),
         psi2: Quaternion::new(q2[0], q2[1], q2[2], q2[3]),
+        psi1_norm: norm1,
+        psi2_norm: norm2,
     };
-    Ok(qp.unpack(norm))
+    Ok(qp.unpack())
 }
 
 #[pyfunction]
@@ -39,6 +50,8 @@ pub fn py_rotate_quaternion(
     let mut qp = QpQuat {
         psi1: Quaternion::new(q1[0], q1[1], q1[2], q1[3]),
         psi2: Quaternion::new(q2[0], q2[1], q2[2], q2[3]),
+        psi1_norm: 1.0,
+        psi2_norm: 1.0,
     };
     qp.rotate(rotation);
     Ok((qp.psi1.coords.into(), qp.psi2.coords.into()))
