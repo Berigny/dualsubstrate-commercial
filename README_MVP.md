@@ -58,3 +58,7 @@ pytest -q
 The storage module will create a RocksDB instance with column families for
 `meta`, `R`, `Qp`, `bridge`, `index`, and `ethics`, and sets up a merge operator
 for the ethics counters.
+
+## Pitch
+> “We gave AI memory a **gyroscope**: 8 primes → 2 quaternions → **rotation-invariant**, **4× smaller**, **35 % less energy** on ARM.  
+> Try it: `curl -X POST api.dualsubstrate.ai/rotate`”

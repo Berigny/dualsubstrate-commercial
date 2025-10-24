@@ -8,7 +8,8 @@ import time
 
 # ---------- imports ----------
 import flow_rule  # our Rust wheel
-from core.ledger import Ledger  # the RocksDB wrapper we wrote earlier
+from core import core as core_rs  # PyO3 bindings (quaternion pack/rotate)
+from core.ledger import Ledger, PRIME_ARRAY  # the RocksDB wrapper we wrote earlier
 from deps import require_key, limiter
 
 # ---------- flow-rule bridge ----------
@@ -50,6 +51,18 @@ class QueryReq(BaseModel):
     primes: List[Prime]
 
 
+class RotateReq(BaseModel):
+    entity: str
+    axis: Tuple[float, float, float] = (0.0, 0.0, 1.0)
+    angle: float
+
+
+class RotateResp(BaseModel):
+    original_checksum: str
+    rotated_checksum: str
+    energy_cycles: int
+
+
 class Edge(BaseModel):
     src: int
     dst: int
@@ -65,6 +78,7 @@ class TraverseResp(BaseModel):
 
 # ---------- helpers ----------
 Node = Literal[0, 1, 2, 3, 4, 5, 6, 7]
+PRIME_IDX = {p: idx for idx, p in enumerate(PRIME_ARRAY)}
 
 
 def _prime_to_node(p: Prime) -> Node:
@@ -155,6 +169,34 @@ def anchor(req: AnchorReq, _: str = Depends(require_key)):
 def query(req: QueryReq, _: str = Depends(require_key)):
     hits = ledger.query(req.primes)
     return {"results": [{"entity": e, "weight": w} for e, w in hits]}
+
+
+@app.post("/rotate", response_model=RotateResp)
+def rotate(req: RotateReq, _: str = Depends(require_key)):
+    """Rotate the eight-prime exponent lattice via quaternion conjugation."""
+    original_checksum = ledger.checksum(req.entity)
+
+    exps = [0] * len(PRIME_ARRAY)
+    for prime, exp in ledger.factors(req.entity):
+        idx = PRIME_IDX.get(prime)
+        if idx is not None:
+            exps[idx] = exp
+
+    q1, q2, norm = core_rs.py_pack_quaternion(exps)
+    cycles_before = core_rs.py_energy_proxy()
+    q1_new, q2_new = core_rs.py_rotate_quaternion(q1, q2, req.axis, req.angle)
+    cycles_after = core_rs.py_energy_proxy()
+    new_exps = core_rs.py_unpack_quaternion(q1_new, q2_new, norm)
+
+    cmds = list(zip(PRIME_ARRAY, new_exps))
+    ledger.anchor_batch(req.entity, cmds)
+
+    rotated_checksum = ledger.checksum(req.entity)
+    return RotateResp(
+        original_checksum=original_checksum,
+        rotated_checksum=rotated_checksum,
+        energy_cycles=int(cycles_after - cycles_before),
+    )
 
 
 @app.get("/checksum")
