@@ -6,4 +6,4 @@ COPY api/requirements.grpc.txt ./requirements.grpc.txt
 RUN pip install -r requirements.txt -r requirements.grpc.txt
 COPY . .
 ENV PYTHONUNBUFFERED=1
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "api.grpc_server"]

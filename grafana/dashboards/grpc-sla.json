@@ -1,0 +1,31 @@
+{
+  "title": "DualSubstrate gRPC SLA",
+  "panels": [
+    {
+      "title": "Request Rate",
+      "targets": [
+        {
+          "expr": "rate(grpc_server_handled_total[5m])",
+          "legendFormat": "{{method}} – {{code}}"
+        }
+      ]
+    },
+    {
+      "title": "Latency p99",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(grpc_server_handling_seconds_bucket[5m])) by (le,method))",
+          "legendFormat": "p99 – {{method}}"
+        }
+      ]
+    },
+    {
+      "title": "Error Ratio",
+      "targets": [
+        {
+          "expr": "rate(grpc_server_handled_total{code!=\"OK\"}[5m]) / rate(grpc_server_handled_total[5m])"
+        }
+      ]
+    }
+  ]
+}

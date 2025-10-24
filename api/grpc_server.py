@@ -3,7 +3,9 @@ import asyncio
 import logging
 import os
 import sys
+from contextlib import suppress
 from pathlib import Path
+from time import perf_counter
 from typing import Iterable, Optional
 
 import grpc
@@ -18,6 +20,8 @@ from api.gen.dualsubstrate.v1 import health_pb2 as ds_health_pb
 from api.gen.dualsubstrate.v1 import health_pb2_grpc as ds_health_rpc
 from api.gen.dualsubstrate.v1 import ledger_pb2 as pb
 from api.gen.dualsubstrate.v1 import ledger_pb2_grpc as rpc
+from api.metrics import record_err, record_ok
+from api.metrics_http import metrics_server
 
 # --- wire-up to your existing core ---
 # Expect these functions to exist or be easy to add:
@@ -43,35 +47,76 @@ class DualSubstrateHealthService(ds_health_rpc.HealthServicer):
 
 
 class DualSubstrateService(rpc.DualSubstrateServicer):
+    _SERVICE = "dualsubstrate.v1.DualSubstrate"
+
     async def Rotate(self, request: pb.QuaternionRequest, context):
-        q = list(request.q)
-        vec = list(request.vec) if request.vec else None
-        rotated = core_rotate.rotate(q, vec)
-        return pb.QuaternionResponse(vec=rotated)
+        start = perf_counter()
+        method = "Rotate"
+        try:
+            q = list(request.q)
+            vec = list(request.vec) if request.vec else None
+            rotated = core_rotate.rotate(q, vec)
+            response = pb.QuaternionResponse(vec=rotated)
+        except grpc.RpcError as exc:
+            record_err(self._SERVICE, method, exc.code().name)
+            raise
+        except Exception:
+            record_err(self._SERVICE, method, grpc.StatusCode.UNKNOWN.name)
+            raise
+        else:
+            duration = perf_counter() - start
+            record_ok(self._SERVICE, method, duration)
+            return response
 
     async def Append(self, request: pb.AppendRequest, context):
-        e = request.entry
-        ts, commit_id = core_ledger.append_ledger(
-            entity=e.entity,
-            r=bytes(e.r),
-            p=bytes(e.p),
-            ts=int(e.ts) if e.ts else None,
-            meta=dict(e.meta),
-            idem_key=request.idem_key or None,
-        )
-        return pb.AppendResponse(ts=ts, commit_id=commit_id)
+        start = perf_counter()
+        method = "Append"
+        try:
+            e = request.entry
+            ts, commit_id = core_ledger.append_ledger(
+                entity=e.entity,
+                r=bytes(e.r),
+                p=bytes(e.p),
+                ts=int(e.ts) if e.ts else None,
+                meta=dict(e.meta),
+                idem_key=request.idem_key or None,
+            )
+            response = pb.AppendResponse(ts=ts, commit_id=commit_id)
+        except grpc.RpcError as exc:
+            record_err(self._SERVICE, method, exc.code().name)
+            raise
+        except Exception:
+            record_err(self._SERVICE, method, grpc.StatusCode.UNKNOWN.name)
+            raise
+        else:
+            duration = perf_counter() - start
+            record_ok(self._SERVICE, method, duration)
+            return response
 
     async def ScanPrefix(self, request: pb.ScanRequest, context):
-        rows: Iterable[tuple[str, int, bytes, bytes]] = core_ledger.scan_p_prefix(
-            prefix=bytes(request.p_prefix),
-            limit=int(request.limit or 100),
-            reverse=bool(request.reverse),
-        )
-        out_rows = [
-            pb.LedgerRow(entity=entity, ts=ts, r=r, p=p)
-            for entity, ts, r, p in rows
-        ]
-        return pb.ScanResponse(rows=out_rows)
+        start = perf_counter()
+        method = "ScanPrefix"
+        try:
+            rows: Iterable[tuple[str, int, bytes, bytes]] = core_ledger.scan_p_prefix(
+                prefix=bytes(request.p_prefix),
+                limit=int(request.limit or 100),
+                reverse=bool(request.reverse),
+            )
+            out_rows = [
+                pb.LedgerRow(entity=entity, ts=ts, r=r, p=p)
+                for entity, ts, r, p in rows
+            ]
+            response = pb.ScanResponse(rows=out_rows)
+        except grpc.RpcError as exc:
+            record_err(self._SERVICE, method, exc.code().name)
+            raise
+        except Exception:
+            record_err(self._SERVICE, method, grpc.StatusCode.UNKNOWN.name)
+            raise
+        else:
+            duration = perf_counter() - start
+            record_ok(self._SERVICE, method, duration)
+            return response
 
 
 def _resolve_tls_paths(
@@ -168,6 +213,8 @@ async def serve() -> None:
         server.add_insecure_port(address)
         logging.info("gRPC listening without TLS on %s", address)
 
+    metrics_task = asyncio.create_task(metrics_server())
+
     await server.start()
 
     try:
@@ -175,6 +222,9 @@ async def serve() -> None:
     finally:
         dualsubstrate_health.set_status(ds_health_pb.HealthResponse.Status.NOT_SERVING)
         await health_servicer.enter_graceful_shutdown()
+        metrics_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await metrics_task
 
 
 if __name__ == "__main__":
