@@ -1,0 +1,21 @@
+FROM golang:1.24-alpine AS builder
+RUN apk add --no-cache buf git
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY buf.yaml buf.gen.yaml buf.lock ./
+COPY proto proto
+RUN buf generate
+
+COPY cmd cmd
+RUN go build -o /gateway ./cmd/gateway
+
+FROM alpine:3.20
+RUN apk add --no-cache ca-certificates
+COPY --from=builder /gateway /gateway
+COPY --from=builder /app/gen/openapiv2 /gen/openapiv2
+EXPOSE 8080
+ENV UPSTREAM_GRPC=api:50051
+CMD ["/gateway"]

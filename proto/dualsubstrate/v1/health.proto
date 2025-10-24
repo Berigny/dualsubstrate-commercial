@@ -1,6 +1,8 @@
 syntax = "proto3";
 package dualsubstrate.v1;
 
+option go_package = "github.com/berigny/dualsubstrate-commercial/gen/go/proto/dualsubstrate/v1;v1";
+
 service Health {
   rpc Check (HealthRequest) returns (HealthResponse);
 }

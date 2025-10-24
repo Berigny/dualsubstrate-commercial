@@ -1,4 +1,5 @@
 fastapi==0.110.0
-python-rocksdb==0.9.1  # wheels on PyPI for amd64
+httpx==0.27.0
+rocksdict>=0.3.20,<0.4.0
 slowapi==0.1.9
 uvicorn[standard]==0.29.0

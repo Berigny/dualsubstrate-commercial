@@ -1,7 +1,7 @@
 """
 DualSubstrate API – ledger + Metatron-star flow-rule enforcement
 """
-from fastapi import FastAPI, HTTPException, Depends, Query
+from fastapi import FastAPI, HTTPException, Depends, Query, Request
 from pydantic import BaseModel, conint
 from typing import List, Tuple, Literal, Callable
 import time
@@ -132,7 +132,7 @@ def root():
 # ---------- existing endpoints ----------
 @app.post("/anchor")
 @limiter.limit("100/minute")
-def anchor(req: AnchorReq, _: str = Depends(require_key)):
+def anchor(req: AnchorReq, request: Request, _: str = Depends(require_key)):
     """
     1. map primes → nodes
     2. enforce flow-rules (auto-route via C if needed)
@@ -166,7 +166,7 @@ def anchor(req: AnchorReq, _: str = Depends(require_key)):
 
 @app.post("/query")
 @limiter.limit("200/minute")
-def query(req: QueryReq, _: str = Depends(require_key)):
+def query(req: QueryReq, request: Request, _: str = Depends(require_key)):
     hits = ledger.query(req.primes)
     return {"results": [{"entity": e, "weight": w} for e, w in hits]}
 
@@ -207,7 +207,11 @@ def checksum(entity: str, _: str = Depends(require_key)):
 # ---------- new traverse endpoint (unchanged logic) ----------
 @app.post("/traverse", response_model=TraverseResp)
 @limiter.limit("300/minute")
-def traverse(start: int = Query(..., ge=0, le=7), depth: int = Query(3, ge=1, le=10)):
+def traverse(
+    request: Request,
+    start: int = Query(..., ge=0, le=7),
+    depth: int = Query(3, ge=1, le=10),
+):
     centroid = _centroid_now()
     flips = 0
     current = start
