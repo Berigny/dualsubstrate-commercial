@@ -1,0 +1,4 @@
+fastapi==0.110.0
+python-rocksdb==0.9.1  # wheels on PyPI for amd64
+slowapi==0.1.9
+uvicorn[standard]==0.29.0

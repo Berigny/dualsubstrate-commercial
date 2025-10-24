@@ -1,16 +1,8 @@
-# syntax=docker/dockerfile:1
-
 FROM python:3.11-slim
-
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
-
-WORKDIR /srv/app
-
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir fastapi "uvicorn[standard]" pydantic
-
-COPY . /srv/app
-
-EXPOSE 8000
+RUN apt-get update && apt-get install -y build-essential && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+COPY . .
+ENV PYTHONUNBUFFERED=1
 CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]

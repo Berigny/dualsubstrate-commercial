@@ -1,26 +1,16 @@
-"""Authentication and rate limiting dependencies for the API."""
+import os, time
+from fastapi import HTTPException, Depends
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
-from __future__ import annotations
+KEYS = set(os.getenv("API_KEYS", "demo-key").split(","))
+limiter = Limiter(key_func=get_remote_address)
 
-import asyncio
-
-from fastapi import Header, HTTPException, status
-
-API_KEY_HEADER = "x-api-key"
-DUMMY_API_KEY = "mvp-secret"
-
-
-async def get_current_user(api_key: str = Header(default="")) -> str:
-    """Validate the provided API key header."""
-    if not api_key or api_key != DUMMY_API_KEY:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API key",
-        )
-    return "mvp-user"
-
-
-async def rate_limiter() -> None:
-    """Async placeholder for future rate limiting controls."""
-    await asyncio.sleep(0)
-
+def require_key(key: str = Depends(lambda: None)):
+    # FastAPI header dependency
+    from fastapi.security import HTTPBearer
+    scheme = HTTPBearer()
+    def checker(tok = Depends(scheme)):
+        if tok.credentials not in KEYS:
+            raise HTTPException(401, "Invalid key")
+    return Depends(checker)
