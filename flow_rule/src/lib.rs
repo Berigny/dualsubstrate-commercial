@@ -4,11 +4,16 @@
 //!  S2: 4=null, 5=electric, 6=magnetic, 7=matter
 //! Centroid C is virtual; even→C→odd enforced.
 
-use std::collections::HashSet;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Node {
-    S0, S1, S2, S3, S4, S5, S6, S7,
+    S0,
+    S1,
+    S2,
+    S3,
+    S4,
+    S5,
+    S6,
+    S7,
 }
 
 impl Node {
@@ -37,7 +42,7 @@ fn allowed_direct(src: Node, dst: Node) -> bool {
         (src, dst),
         (S1, S2) | (S5, S6) | // work
         (S3, S0) | (S7, S4) | // heat dump
-        (S1, S0)              // electric dissipation
+        (S1, S0) // electric dissipation
     )
 }
 
@@ -59,7 +64,10 @@ pub fn transition_allowed(src: Node, dst: Node) -> bool {
 
 /// Batch check (used by ledger hot-path)
 pub fn batch_allowed(edges: &[(Node, Node)]) -> Vec<bool> {
-    edges.iter().map(|(s, d)| transition_allowed(*s, *d)).collect()
+    edges
+        .iter()
+        .map(|(s, d)| transition_allowed(*s, *d))
+        .collect()
 }
 
 //--------------------------------------------------
@@ -117,7 +125,16 @@ mod tests {
 
     #[test]
     fn persistence_always_ok() {
-        for n in [Node::S0, Node::S1, Node::S2, Node::S3, Node::S4, Node::S5, Node::S6, Node::S7] {
+        for n in [
+            Node::S0,
+            Node::S1,
+            Node::S2,
+            Node::S3,
+            Node::S4,
+            Node::S5,
+            Node::S6,
+            Node::S7,
+        ] {
             assert!(transition_allowed(n, n));
         }
     }
@@ -125,7 +142,7 @@ mod tests {
     #[test]
     fn even_to_odd_must_be_whitelisted() {
         assert!(!transition_allowed(Node::S2, Node::S1)); // 2→1 forbidden
-        assert!(transition_allowed(Node::S1, Node::S2));  // 1→2 allowed (work)
+        assert!(transition_allowed(Node::S1, Node::S2)); // 1→2 allowed (work)
     }
 
     #[test]

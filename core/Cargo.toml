@@ -1,0 +1,17 @@
+[package]
+name = "core"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "core"
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+flow_rule = { path = "../flow_rule" }
+rocksdb = "0.21"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = "0.4"
+rulinalg = "0.4"
+pyo3 = { version = "0.20", features = ["extension-module"] }
