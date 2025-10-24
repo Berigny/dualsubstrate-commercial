@@ -46,6 +46,39 @@ This starts the API on port 8000 and a Grafana stub on port 3000.
 - `ops/` – Docker, docker-compose, Grafana stub dashboard
 - `tests/` – pytest skeletons for core logic and API layer
 
+## Interfaces
+
+### gRPC + OpenAPI
+
+```bash
+# 1) install gRPC dev deps
+pip install -r api/requirements.grpc.txt
+
+# 2) generate Python stubs (once per .proto change)
+make grpc.gen
+
+# 3) run the gRPC server (listens on :50051)
+make grpc.run
+
+# 4) (optional) generate OpenAPI JSON via Docker
+make grpc.openapi
+# -> openapi/dualsubstrate.v1.swagger.json
+```
+
+#### Example (Python client)
+
+```python
+from sdk.python.grpc_client import LedgerClient
+c = LedgerClient("localhost:50051")
+
+print("health:", c.health())
+print("rotate:", c.rotate([1.0, 0.0, 0.0, 0.0], vec=[0.0, 1.0, 0.0]))
+
+commit = c.append("user:42", r=b"\x01\x02", p=b"\x9f\x03\xaa", meta={"quality":"0.91"})
+rows = c.scan_prefix(b"\x9f\x03", limit=10)
+print("commit:", commit, "rows:", len(rows))
+```
+
 ## Storage Layer (RocksDB)
 To experiment with the dual-substrate ledger storage module, install the optional
 `rocksdict` dependency and run the unit suite:

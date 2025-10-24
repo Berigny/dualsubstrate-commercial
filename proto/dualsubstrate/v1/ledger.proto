@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package dualsubstrate.v1;
+
+option go_package = "github.com/Berigny/dualsubstrate-commercial/proto/dualsubstrate/v1;v1";
+
+// --------- Messages ---------
+message QuaternionRequest {
+  // q = [w, x, y, z] or your chosen convention; keep length=4
+  repeated float q = 1;
+  // optional vector to rotate (len=3). If omitted, server uses a default basis.
+  repeated float vec = 2;
+}
+
+message QuaternionResponse {
+  // rotated vector (len=3)
+  repeated float vec = 1;
+}
+
+message LedgerEntry {
+  string entity = 1;
+  bytes r = 2;         // opaque R payload (or pointer/id)
+  bytes p = 3;         // opaque Qp payload (prefix-indexable bytes)
+  uint64 ts = 4;       // big-endian-friendly timestamp; server may override
+  map<string, string> meta = 5;
+}
+
+message AppendRequest {
+  LedgerEntry entry = 1;
+  // idempotency key; if empty, server can derive from (entity, ts)
+  string idem_key = 2;
+}
+
+message AppendResponse {
+  uint64 ts = 1;
+  string commit_id = 2; // e.g., entity/ts or your batch anchor id
+}
+
+message ScanRequest {
+  bytes p_prefix = 1; // raw prefix (not hex string)
+  uint32 limit = 2;
+  bool reverse = 3;
+}
+
+message LedgerRow {
+  string entity = 1;
+  uint64 ts = 2;
+  bytes r = 3;
+  bytes p = 4;
+}
+
+message ScanResponse {
+  repeated LedgerRow rows = 1;
+}
+
+message HealthRequest {}
+message HealthResponse { string status = 1; }
+
+// --------- Service ---------
+service DualSubstrate {
+  rpc Health(HealthRequest) returns (HealthResponse);
+  rpc Rotate(QuaternionRequest) returns (QuaternionResponse);
+  rpc Append(AppendRequest) returns (AppendResponse);
+  rpc ScanPrefix(ScanRequest) returns (ScanResponse);
+}
