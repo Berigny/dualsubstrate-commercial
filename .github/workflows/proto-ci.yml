@@ -1,0 +1,40 @@
+name: Proto CI
+
+on:
+  pull_request:
+    paths:
+      - "proto/**"
+      - ".github/workflows/proto-ci.yml"
+      - "buf.yaml"
+      - "buf.lock"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          version: "1.32.0"
+      - uses: bufbuild/buf-lint-action@v1
+        with:
+          input: proto
+      - uses: bufbuild/buf-breaking-action@v1
+        if: "!contains(github.event.pull_request.labels.*.name, 'proto-breaking')"
+        with:
+          input: proto
+          against: "https://github.com/${{ github.repository }}.git#branch=main"
+
+  comment:
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: "🚫 **Buf CI failed** – please run `buf lint` locally and fix violations."
+            });
