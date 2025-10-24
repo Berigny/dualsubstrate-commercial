@@ -1,9 +1,7 @@
-"""
-Append-only event log + RocksDB indices
-Events: (entity_id, prime, delta_k, timestamp)
-"""
+"""Append-only event log + RocksDB indices
+Events: (entity_id, prime, delta_k, timestamp)."""
 import rocksdb, json, time, os
-from typing import Dict, List, Tuple
+from typing import Dict, Iterable, List, Tuple
 from checksum import merkle_root
 from .flow_rule_bridge import validate_prime_sequence
 
@@ -93,3 +91,37 @@ class Ledger:
                 break
             leaves.append(k+v)
         return merkle_root(leaves)
+
+
+_INMEM_APPEND_LOG: List[Tuple[str, int, bytes, bytes, Dict[str, str]]] = []
+
+
+def append_ledger(
+    *,
+    entity: str,
+    r: bytes,
+    p: bytes,
+    ts: int | None = None,
+    meta: Dict[str, str] | None = None,
+    idem_key: str | None = None,
+) -> Tuple[int, str]:
+    """Lightweight append helper used by the gRPC facade."""
+
+    timestamp = int(ts) if ts is not None else int(time.time() * 1000)
+    commit_id = idem_key or f"{entity}/{timestamp}"
+    _INMEM_APPEND_LOG.append((entity, timestamp, bytes(r), bytes(p), dict(meta or {})))
+    return timestamp, commit_id
+
+
+def scan_p_prefix(
+    *, prefix: bytes, limit: int = 100, reverse: bool = False
+) -> Iterable[Tuple[str, int, bytes, bytes]]:
+    """Iterate over in-memory append log entries filtered by ``prefix``."""
+
+    if limit <= 0:
+        return []
+
+    filtered = [row for row in _INMEM_APPEND_LOG if row[3].startswith(prefix)] if prefix else list(_INMEM_APPEND_LOG)
+    filtered.sort(key=lambda row: row[1], reverse=reverse)
+    for entity, ts, r_val, p_val, _ in filtered[:limit]:
+        yield (entity, ts, r_val, p_val)

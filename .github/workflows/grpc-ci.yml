@@ -1,0 +1,29 @@
+name: gRPC & OpenAPI
+
+on:
+  push:
+    paths:
+      - "proto/**"
+      - "api/**"
+      - "sdk/python/**"
+      - ".github/workflows/grpc-ci.yml"
+      - "Makefile"
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install deps
+        run: |
+          pip install -r api/requirements.grpc.txt
+      - name: Generate stubs
+        run: make grpc.gen
+      - name: Generate OpenAPI (Docker)
+        run: make grpc.openapi
+      - name: Lint proto presence
+        run: test -f openapi/dualsubstrate.v1.swagger.json
