@@ -24,7 +24,7 @@ def main() -> None:
 
         # quaternion path
         t0 = core_rs.py_energy_proxy()
-        q1, q2, _ = core_rs.py_pack_quaternion([int(e) for e in exps])
+        q1, q2, _, _ = core_rs.py_pack_quaternion([int(e) for e in exps])
         core_rs.py_rotate_quaternion(q1, q2, (0.0, 0.0, 1.0), 0.1)
         t1 = core_rs.py_energy_proxy()
         quat.append(int(t1 - t0))

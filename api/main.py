@@ -182,11 +182,11 @@ def rotate(req: RotateReq, _: str = Depends(require_key)):
         if idx is not None:
             exps[idx] = exp
 
-    q1, q2, norm = core_rs.py_pack_quaternion(exps)
+    q1, q2, norm1, norm2 = core_rs.py_pack_quaternion(exps)
     cycles_before = core_rs.py_energy_proxy()
     q1_new, q2_new = core_rs.py_rotate_quaternion(q1, q2, req.axis, req.angle)
     cycles_after = core_rs.py_energy_proxy()
-    new_exps = core_rs.py_unpack_quaternion(q1_new, q2_new, norm)
+    new_exps = core_rs.py_unpack_quaternion(q1_new, q2_new, norm1, norm2)
 
     cmds = list(zip(PRIME_ARRAY, new_exps))
     ledger.anchor_batch(req.entity, cmds)
