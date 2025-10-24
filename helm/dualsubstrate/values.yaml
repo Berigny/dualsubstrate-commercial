@@ -1,0 +1,40 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/berigny/dualsubstrate
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 50051
+
+server:
+  port: 50051
+  tls:
+    enabled: true
+    secretName: dualsubstrate-tls
+
+certificate:
+  enabled: true
+  secretName: dualsubstrate-tls
+  dnsNames:
+    - api.dualsubstrate.ai
+    - dualsubstrate-grpc.internal
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+
+livenessProbe:
+  grpc:
+    port: 50051
+    service: dualsubstrate.v1.Health
+  initialDelaySeconds: 10
+  periodSeconds: 5
+
+readinessProbe:
+  grpc:
+    port: 50051
+    service: dualsubstrate.v1.Health
+
+resources: {}

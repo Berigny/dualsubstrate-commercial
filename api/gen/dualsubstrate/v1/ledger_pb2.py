@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1d\x64ualsubstrate/v1/ledger.proto\x12\x10\x64ualsubstrate.v1\"+\n\x11QuaternionRequest\x12\t\n\x01q\x18\x01 \x03(\x02\x12\x0b\n\x03vec\x18\x02 \x03(\x02\"!\n\x12QuaternionResponse\x12\x0b\n\x03vec\x18\x01 \x03(\x02\"\xa3\x01\n\x0bLedgerEntry\x12\x0e\n\x06\x65ntity\x18\x01 \x01(\t\x12\t\n\x01r\x18\x02 \x01(\x0c\x12\t\n\x01p\x18\x03 \x01(\x0c\x12\n\n\x02ts\x18\x04 \x01(\x04\x12\x35\n\x04meta\x18\x05 \x03(\x0b\x32\'.dualsubstrate.v1.LedgerEntry.MetaEntry\x1a+\n\tMetaEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"O\n\rAppendRequest\x12,\n\x05\x65ntry\x18\x01 \x01(\x0b\x32\x1d.dualsubstrate.v1.LedgerEntry\x12\x10\n\x08idem_key\x18\x02 \x01(\t\"/\n\x0e\x41ppendResponse\x12\n\n\x02ts\x18\x01 \x01(\x04\x12\x11\n\tcommit_id\x18\x02 \x01(\t\"?\n\x0bScanRequest\x12\x10\n\x08p_prefix\x18\x01 \x01(\x0c\x12\r\n\x05limit\x18\x02 \x01(\r\x12\x0f\n\x07reverse\x18\x03 \x01(\x08\"=\n\tLedgerRow\x12\x0e\n\x06\x65ntity\x18\x01 \x01(\t\x12\n\n\x02ts\x18\x02 \x01(\x04\x12\t\n\x01r\x18\x03 \x01(\x0c\x12\t\n\x01p\x18\x04 \x01(\x0c\"9\n\x0cScanResponse\x12)\n\x04rows\x18\x01 \x03(\x0b\x32\x1b.dualsubstrate.v1.LedgerRow\"\x0f\n\rHealthRequest\" \n\x0eHealthResponse\x12\x0e\n\x06status\x18\x01 \x01(\t2\xcb\x02\n\rDualSubstrate\x12K\n\x06Health\x12\x1f.dualsubstrate.v1.HealthRequest\x1a .dualsubstrate.v1.HealthResponse\x12S\n\x06Rotate\x12#.dualsubstrate.v1.QuaternionRequest\x1a$.dualsubstrate.v1.QuaternionResponse\x12K\n\x06\x41ppend\x12\x1f.dualsubstrate.v1.AppendRequest\x1a .dualsubstrate.v1.AppendResponse\x12K\n\nScanPrefix\x12\x1d.dualsubstrate.v1.ScanRequest\x1a\x1e.dualsubstrate.v1.ScanResponseBGZEgithub.com/Berigny/dualsubstrate-commercial/proto/dualsubstrate/v1;v1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1d\x64ualsubstrate/v1/ledger.proto\x12\x10\x64ualsubstrate.v1\"+\n\x11QuaternionRequest\x12\t\n\x01q\x18\x01 \x03(\x02\x12\x0b\n\x03vec\x18\x02 \x03(\x02\"!\n\x12QuaternionResponse\x12\x0b\n\x03vec\x18\x01 \x03(\x02\"\xa3\x01\n\x0bLedgerEntry\x12\x0e\n\x06\x65ntity\x18\x01 \x01(\t\x12\t\n\x01r\x18\x02 \x01(\x0c\x12\t\n\x01p\x18\x03 \x01(\x0c\x12\n\n\x02ts\x18\x04 \x01(\x04\x12\x35\n\x04meta\x18\x05 \x03(\x0b\x32\'.dualsubstrate.v1.LedgerEntry.MetaEntry\x1a+\n\tMetaEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"O\n\rAppendRequest\x12,\n\x05\x65ntry\x18\x01 \x01(\x0b\x32\x1d.dualsubstrate.v1.LedgerEntry\x12\x10\n\x08idem_key\x18\x02 \x01(\t\"/\n\x0e\x41ppendResponse\x12\n\n\x02ts\x18\x01 \x01(\x04\x12\x11\n\tcommit_id\x18\x02 \x01(\t\"?\n\x0bScanRequest\x12\x10\n\x08p_prefix\x18\x01 \x01(\x0c\x12\r\n\x05limit\x18\x02 \x01(\r\x12\x0f\n\x07reverse\x18\x03 \x01(\x08\"=\n\tLedgerRow\x12\x0e\n\x06\x65ntity\x18\x01 \x01(\t\x12\n\n\x02ts\x18\x02 \x01(\x04\x12\t\n\x01r\x18\x03 \x01(\x0c\x12\t\n\x01p\x18\x04 \x01(\x0c\"9\n\x0cScanResponse\x12)\n\x04rows\x18\x01 \x03(\x0b\x32\x1b.dualsubstrate.v1.LedgerRow2\xfe\x01\n\rDualSubstrate\x12S\n\x06Rotate\x12#.dualsubstrate.v1.QuaternionRequest\x1a$.dualsubstrate.v1.QuaternionResponse\x12K\n\x06\x41ppend\x12\x1f.dualsubstrate.v1.AppendRequest\x1a .dualsubstrate.v1.AppendResponse\x12K\n\nScanPrefix\x12\x1d.dualsubstrate.v1.ScanRequest\x1a\x1e.dualsubstrate.v1.ScanResponseBGZEgithub.com/Berigny/dualsubstrate-commercial/proto/dualsubstrate/v1;v1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -52,10 +52,6 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_LEDGERROW']._serialized_end=553
   _globals['_SCANRESPONSE']._serialized_start=555
   _globals['_SCANRESPONSE']._serialized_end=612
-  _globals['_HEALTHREQUEST']._serialized_start=614
-  _globals['_HEALTHREQUEST']._serialized_end=629
-  _globals['_HEALTHRESPONSE']._serialized_start=631
-  _globals['_HEALTHRESPONSE']._serialized_end=663
-  _globals['_DUALSUBSTRATE']._serialized_start=666
-  _globals['_DUALSUBSTRATE']._serialized_end=997
+  _globals['_DUALSUBSTRATE']._serialized_start=615
+  _globals['_DUALSUBSTRATE']._serialized_end=869
 # @@protoc_insertion_point(module_scope)

@@ -1,15 +1,27 @@
 import grpc
 from api.gen.dualsubstrate.v1 import ledger_pb2 as pb
 from api.gen.dualsubstrate.v1 import ledger_pb2_grpc as rpc
+from api.gen.dualsubstrate.v1 import health_pb2 as ds_health_pb
+from api.gen.dualsubstrate.v1 import health_pb2_grpc as ds_health_rpc
+from grpc_health.v1 import health_pb2 as grpc_health_pb2, health_pb2_grpc as grpc_health_rpc
 
 
 class LedgerClient:
     def __init__(self, target: str = "localhost:50051"):
         self.channel = grpc.insecure_channel(target)
         self.stub = rpc.DualSubstrateStub(self.channel)
+        self.health_stub = ds_health_rpc.HealthStub(self.channel)
+        self.grpc_health_stub = grpc_health_rpc.HealthStub(self.channel)
 
     def health(self) -> str:
-        return self.stub.Health(pb.HealthRequest()).status
+        response = self.health_stub.Check(ds_health_pb.HealthRequest())
+        return ds_health_pb.HealthResponse.Status.Name(response.status)
+
+    def grpc_health(self, service: str = "dualsubstrate.v1.DualSubstrate") -> str:
+        response = self.grpc_health_stub.Check(
+            grpc_health_pb2.HealthCheckRequest(service=service)
+        )
+        return grpc_health_pb2.HealthCheckResponse.ServingStatus.Name(response.status)
 
     def rotate(self, q, vec=None):
         req = pb.QuaternionRequest(q=q, vec=vec or [])

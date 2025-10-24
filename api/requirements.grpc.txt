@@ -1,3 +1,5 @@
-grpcio>=1.65
-grpcio-tools>=1.65
-protobuf>=4.25
+grpcio>=1.76
+grpcio-tools>=1.76
+grpcio-health-checking>=1.76
+grpcio-reflection>=1.76
+protobuf>=4.25,<7

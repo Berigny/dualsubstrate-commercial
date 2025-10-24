@@ -35,11 +35,6 @@ class DualSubstrateStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.Health = channel.unary_unary(
-                '/dualsubstrate.v1.DualSubstrate/Health',
-                request_serializer=dualsubstrate_dot_v1_dot_ledger__pb2.HealthRequest.SerializeToString,
-                response_deserializer=dualsubstrate_dot_v1_dot_ledger__pb2.HealthResponse.FromString,
-                _registered_method=True)
         self.Rotate = channel.unary_unary(
                 '/dualsubstrate.v1.DualSubstrate/Rotate',
                 request_serializer=dualsubstrate_dot_v1_dot_ledger__pb2.QuaternionRequest.SerializeToString,
@@ -60,12 +55,6 @@ class DualSubstrateStub(object):
 class DualSubstrateServicer(object):
     """--------- Service ---------
     """
-
-    def Health(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
 
     def Rotate(self, request, context):
         """Missing associated documentation comment in .proto file."""
@@ -88,11 +77,6 @@ class DualSubstrateServicer(object):
 
 def add_DualSubstrateServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'Health': grpc.unary_unary_rpc_method_handler(
-                    servicer.Health,
-                    request_deserializer=dualsubstrate_dot_v1_dot_ledger__pb2.HealthRequest.FromString,
-                    response_serializer=dualsubstrate_dot_v1_dot_ledger__pb2.HealthResponse.SerializeToString,
-            ),
             'Rotate': grpc.unary_unary_rpc_method_handler(
                     servicer.Rotate,
                     request_deserializer=dualsubstrate_dot_v1_dot_ledger__pb2.QuaternionRequest.FromString,
@@ -119,33 +103,6 @@ def add_DualSubstrateServicer_to_server(servicer, server):
 class DualSubstrate(object):
     """--------- Service ---------
     """
-
-    @staticmethod
-    def Health(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/dualsubstrate.v1.DualSubstrate/Health',
-            dualsubstrate_dot_v1_dot_ledger__pb2.HealthRequest.SerializeToString,
-            dualsubstrate_dot_v1_dot_ledger__pb2.HealthResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
 
     @staticmethod
     def Rotate(request,

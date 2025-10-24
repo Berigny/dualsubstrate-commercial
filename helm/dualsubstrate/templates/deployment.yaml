@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dualsubstrate.fullname" . }}
+  labels:
+    {{- include "dualsubstrate.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "dualsubstrate.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "dualsubstrate.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: grpc
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - python
+            - -m
+            - api.grpc_server
+{{- if .Values.server.tls.enabled }}
+          args:
+            - --tls-dir=/tls
+{{- end }}
+          env:
+            - name: GRPC_PORT
+              value: "{{ .Values.server.port }}"
+{{- if .Values.server.tls.enabled }}
+            - name: GRPC_TLS_DIR
+              value: /tls
+{{- end }}
+          ports:
+            - name: grpc
+              containerPort: {{ .Values.server.port }}
+{{- with .Values.livenessProbe }}
+          livenessProbe:
+{{ toYaml . | indent 12 }}
+{{- end }}
+{{- with .Values.readinessProbe }}
+          readinessProbe:
+{{ toYaml . | indent 12 }}
+{{- end }}
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+{{- if .Values.server.tls.enabled }}
+          volumeMounts:
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+{{- end }}
+{{- if .Values.server.tls.enabled }}
+      volumes:
+        - name: tls
+          secret:
+            secretName: {{ .Values.server.tls.secretName | default .Values.certificate.secretName | quote }}
+{{- end }}

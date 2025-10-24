@@ -1,0 +1,17 @@
+syntax = "proto3";
+package dualsubstrate.v1;
+
+service Health {
+  rpc Check (HealthRequest) returns (HealthResponse);
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  enum Status {
+    UNKNOWN = 0;
+    SERVING = 1;
+    NOT_SERVING = 2;
+  }
+  Status status = 1;
+}

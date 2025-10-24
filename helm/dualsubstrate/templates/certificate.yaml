@@ -1,0 +1,17 @@
+{{- if .Values.certificate.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "dualsubstrate.fullname" . }}-tls
+  labels:
+    {{- include "dualsubstrate.labels" . | nindent 4 }}
+spec:
+  secretName: {{ .Values.certificate.secretName | default (printf "%s-tls" (include "dualsubstrate.fullname" .)) }}
+  dnsNames:
+{{- range .Values.certificate.dnsNames }}
+    - {{ . }}
+{{- end }}
+  issuerRef:
+    name: {{ .Values.certificate.issuerRef.name }}
+    kind: {{ .Values.certificate.issuerRef.kind }}
+{{- end }}
