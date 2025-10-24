@@ -45,3 +45,16 @@ This starts the API on port 8000 and a Grafana stub on port 3000.
 - `sdk/python/` – lightweight client wrapper
 - `ops/` – Docker, docker-compose, Grafana stub dashboard
 - `tests/` – pytest skeletons for core logic and API layer
+
+## Storage Layer (RocksDB)
+To experiment with the dual-substrate ledger storage module, install the optional
+`rocksdict` dependency and run the unit suite:
+
+```bash
+pip install rocksdict
+pytest -q
+```
+
+The storage module will create a RocksDB instance with column families for
+`meta`, `R`, `Qp`, `bridge`, `index`, and `ethics`, and sets up a merge operator
+for the ethics counters.
