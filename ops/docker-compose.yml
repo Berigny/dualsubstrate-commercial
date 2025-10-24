@@ -1,0 +1,17 @@
+version: "3.11"
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: ops/Dockerfile
+    environment:
+      X_API_KEY: mvp-secret
+    ports:
+      - "8000:8000"
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana_dash.json:/etc/grafana/provisioning/dashboards/mvp.json:ro
