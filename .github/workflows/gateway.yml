@@ -1,0 +1,40 @@
+name: Gateway
+
+on:
+  push:
+    paths:
+      - "cmd/gateway/**"
+      - "proto/**"
+      - "buf.yaml"
+      - "buf.gen.yaml"
+      - "buf.lock"
+      - "Dockerfile.gateway"
+      - "docker-compose.yml"
+      - "docker-compose.gateway.yml"
+      - ".github/workflows/gateway.yml"
+  pull_request:
+    paths:
+      - "cmd/gateway/**"
+      - "proto/**"
+      - "buf.yaml"
+      - "buf.gen.yaml"
+      - "buf.lock"
+      - "Dockerfile.gateway"
+      - "docker-compose.yml"
+      - "docker-compose.gateway.yml"
+      - ".github/workflows/gateway.yml"
+
+jobs:
+  gateway:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start stack
+        run: docker compose -f docker-compose.yml -f docker-compose.gateway.yml up -d --build
+      - name: Wait for gateway
+        run: timeout 60 bash -c 'until curl -fsS localhost:8080/openapi.json; do sleep 2; done'
+      - name: Lint OpenAPI
+        run: npx @redocly/cli lint gen/openapiv2/dualsubstrate.swagger.json
+      - name: Teardown
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.gateway.yml down

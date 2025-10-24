@@ -1,0 +1,308 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "DualSubstrate API",
+    "description": "p-adic quaternion memory layer",
+    "version": "1.0"
+  },
+  "tags": [
+    {
+      "name": "DualSubstrate"
+    },
+    {
+      "name": "Health"
+    }
+  ],
+  "schemes": [
+    "https"
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/v1/append": {
+      "post": {
+        "operationId": "DualSubstrate_Append",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1AppendResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1AppendRequest"
+            }
+          }
+        ],
+        "tags": [
+          "DualSubstrate"
+        ]
+      }
+    },
+    "/v1/rotate": {
+      "post": {
+        "operationId": "DualSubstrate_Rotate",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1QuaternionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1QuaternionRequest"
+            }
+          }
+        ],
+        "tags": [
+          "DualSubstrate"
+        ]
+      }
+    },
+    "/v1/scan_prefix": {
+      "post": {
+        "operationId": "DualSubstrate_ScanPrefix",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ScanResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ScanRequest"
+            }
+          }
+        ],
+        "tags": [
+          "DualSubstrate"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "googlerpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "v1AppendRequest": {
+      "type": "object",
+      "properties": {
+        "entry": {
+          "$ref": "#/definitions/v1LedgerEntry"
+        },
+        "idemKey": {
+          "type": "string",
+          "title": "idempotency key; if empty, server can derive from (entity, ts)"
+        }
+      }
+    },
+    "v1AppendResponse": {
+      "type": "object",
+      "properties": {
+        "ts": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "commitId": {
+          "type": "string",
+          "title": "e.g., entity/ts or your batch anchor id"
+        }
+      }
+    },
+    "v1HealthResponse": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "$ref": "#/definitions/v1HealthResponseStatus"
+        }
+      }
+    },
+    "v1HealthResponseStatus": {
+      "type": "string",
+      "enum": [
+        "UNKNOWN",
+        "SERVING",
+        "NOT_SERVING"
+      ],
+      "default": "UNKNOWN"
+    },
+    "v1LedgerEntry": {
+      "type": "object",
+      "properties": {
+        "entity": {
+          "type": "string"
+        },
+        "r": {
+          "type": "string",
+          "format": "byte",
+          "title": "opaque R payload (or pointer/id)"
+        },
+        "p": {
+          "type": "string",
+          "format": "byte",
+          "title": "opaque Qp payload (prefix-indexable bytes)"
+        },
+        "ts": {
+          "type": "string",
+          "format": "uint64",
+          "title": "big-endian-friendly timestamp; server may override"
+        },
+        "meta": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "v1LedgerRow": {
+      "type": "object",
+      "properties": {
+        "entity": {
+          "type": "string"
+        },
+        "ts": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "r": {
+          "type": "string",
+          "format": "byte"
+        },
+        "p": {
+          "type": "string",
+          "format": "byte"
+        }
+      }
+    },
+    "v1QuaternionRequest": {
+      "type": "object",
+      "properties": {
+        "q": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "title": "q = [w, x, y, z] or your chosen convention; keep length=4"
+        },
+        "vec": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "description": "optional vector to rotate (len=3). If omitted, server uses a default basis."
+        }
+      },
+      "title": "--------- Messages ---------"
+    },
+    "v1QuaternionResponse": {
+      "type": "object",
+      "properties": {
+        "vec": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "title": "rotated vector (len=3)"
+        }
+      }
+    },
+    "v1ScanRequest": {
+      "type": "object",
+      "properties": {
+        "pPrefix": {
+          "type": "string",
+          "format": "byte",
+          "title": "raw prefix (not hex string)"
+        },
+        "limit": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "reverse": {
+          "type": "boolean"
+        }
+      }
+    },
+    "v1ScanResponse": {
+      "type": "object",
+      "properties": {
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1LedgerRow"
+          }
+        }
+      }
+    }
+  }
+}

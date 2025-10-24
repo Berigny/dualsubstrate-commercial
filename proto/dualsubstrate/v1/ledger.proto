@@ -2,7 +2,21 @@ syntax = "proto3";
 
 package dualsubstrate.v1;
 
-option go_package = "github.com/Berigny/dualsubstrate-commercial/proto/dualsubstrate/v1;v1";
+option go_package = "github.com/berigny/dualsubstrate-commercial/gen/go/proto/dualsubstrate/v1;v1";
+
+import "google/api/annotations.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
+  info: {
+    title: "DualSubstrate API";
+    version: "1.0";
+    description: "p-adic quaternion memory layer";
+  }
+  schemes: HTTPS;
+  consumes: "application/json";
+  produces: "application/json";
+};
 
 // --------- Messages ---------
 message QuaternionRequest {
@@ -55,7 +69,22 @@ message ScanResponse {
 
 // --------- Service ---------
 service DualSubstrate {
-  rpc Rotate(QuaternionRequest) returns (QuaternionResponse);
-  rpc Append(AppendRequest) returns (AppendResponse);
-  rpc ScanPrefix(ScanRequest) returns (ScanResponse);
+  rpc Rotate(QuaternionRequest) returns (QuaternionResponse) {
+    option (google.api.http) = {
+      post: "/v1/rotate"
+      body: "*"
+    };
+  }
+  rpc Append(AppendRequest) returns (AppendResponse) {
+    option (google.api.http) = {
+      post: "/v1/append"
+      body: "*"
+    };
+  }
+  rpc ScanPrefix(ScanRequest) returns (ScanResponse) {
+    option (google.api.http) = {
+      post: "/v1/scan_prefix"
+      body: "*"
+    };
+  }
 }

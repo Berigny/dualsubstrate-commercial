@@ -1,0 +1,13 @@
+version: "3.8"
+
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    ports:
+      - "8080:8080"
+    environment:
+      UPSTREAM_GRPC: "api:50051"
+    depends_on:
+      - api

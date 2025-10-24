@@ -46,8 +46,11 @@ def test_ledger_keys_helpers():
 
 def test_ethics_merge_operator_is_associative():
     existing = _encode_ethics({"credits": 10, "debits": 3, "last_ts": 5})
-    operands = types.SimpleNamespace(__iter__=lambda self: iter(self.values))
-    merge_operands = operands()
+    class Operands:
+        def __iter__(self):
+            return iter(self.values)
+
+    merge_operands = Operands()
     merge_operands.values = [
         _encode_ethics({"credits": 2, "debits": 1, "last_ts": 8}),
         _encode_ethics({"credits": 5, "debits": 0, "last_ts": 4}),

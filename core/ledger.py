@@ -1,30 +1,118 @@
 """Append-only event log + RocksDB indices
 Events: (entity_id, prime, delta_k, timestamp)."""
-import rocksdb, json, time, os
+import json
+import os
+import tempfile
+import time
+from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
+
 from checksum import merkle_root
 from .flow_rule_bridge import validate_prime_sequence
+
+try:  # pragma: no cover - optional dependency
+    import rocksdb  # type: ignore
+except ImportError:  # pragma: no cover - fallback to in-memory shim
+    rocksdb = None
 
 EVENT_LOG = os.getenv("EVENT_LOG_PATH", "/data/event.log")
 FACTORS_DB = "/data/factors"
 POSTINGS_DB = "/data/postings"
 PRIME_ARRAY: Tuple[int, ...] = (2, 3, 5, 7, 11, 13, 17, 19)
 
+class _InMemoryIterator:
+    def __init__(self, data: Dict[bytes, bytes]):
+        self._data = data
+        self._keys = sorted(data.keys())
+        self._index = 0
+
+    def seek(self, prefix: bytes) -> None:
+        self._index = 0
+        while self._index < len(self._keys) and self._keys[self._index] < prefix:
+            self._index += 1
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._index >= len(self._keys):
+            raise StopIteration
+        key = self._keys[self._index]
+        self._index += 1
+        return key, self._data[key]
+
+
+class _InMemoryWriteBatch:
+    def __init__(self, target: "_InMemoryDB") -> None:
+        self._target = target
+        self._puts: List[Tuple[bytes, bytes]] = []
+
+    def put(self, key: bytes, value: bytes) -> None:
+        self._puts.append((key, value))
+
+    def apply(self) -> None:
+        for key, value in self._puts:
+            self._target.put(key, value)
+
+
+class _InMemoryDB:
+    def __init__(self) -> None:
+        self._data: Dict[bytes, bytes] = {}
+
+    def get(self, key: bytes):  # type: ignore[override]
+        return self._data.get(key)
+
+    def put(self, key: bytes, value: bytes) -> None:
+        self._data[key] = value
+
+    def iteritems(self) -> _InMemoryIterator:
+        return _InMemoryIterator(self._data)
+
+
 def _open_db(path, cf_names):
+    if rocksdb is None:
+        return _InMemoryDB()
     opts = rocksdb.Options(create_if_missing=True)
-    return rocksdb.DB(path, opts, column_families={name: rocksdb.ColumnFamilyOptions()
-                                                   for name in cf_names})
+    return rocksdb.DB(
+        path,
+        opts,
+        column_families={name: rocksdb.ColumnFamilyOptions() for name in cf_names},
+    )
+
+
+def _new_write_batch(db):
+    if rocksdb is None:
+        return _InMemoryWriteBatch(db)
+    return rocksdb.WriteBatch()
+
+
+def _write_batch(db, batch) -> None:
+    if rocksdb is None:
+        batch.apply()
+    else:
+        db.write(batch)
 
 class Ledger:
     def __init__(self):
         self.fdb = _open_db(FACTORS_DB, ["default"])
         self.pdb = _open_db(POSTINGS_DB, ["default"])
-        self.log = open(EVENT_LOG, "ab", buffering=0)
+        self.log = self._open_event_log()
+
+    @staticmethod
+    def _open_event_log():
+        log_path = Path(EVENT_LOG)
+        try:
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            return open(log_path, "ab", buffering=0)
+        except (OSError, ValueError):  # pragma: no cover - fallback path
+            fallback = Path(tempfile.gettempdir()) / "dualsubstrate" / "event.log"
+            fallback.parent.mkdir(parents=True, exist_ok=True)
+            return open(fallback, "ab", buffering=0)
 
     def anchor(self, entity: str, factors: List[Tuple[int,int]]):
         ts = int(time.time()*1000)
-        batch_f = rocksdb.WriteBatch()
-        batch_p = rocksdb.WriteBatch()
+        batch_f = _new_write_batch(self.fdb)
+        batch_p = _new_write_batch(self.pdb)
         check = validate_prime_sequence([p for p, _ in factors]) if factors else None
         via_flags = check.via_centroid if check else []
         for idx, (p, dk) in enumerate(factors):
@@ -38,8 +126,8 @@ class Ledger:
             batch_f.put(f"{entity}:{p}".encode(), str(new).encode())
             # 3) update prime→postings
             batch_p.put(f"{p}:{entity}".encode(), str(new).encode())
-        self.fdb.write(batch_f)
-        self.pdb.write(batch_p)
+        _write_batch(self.fdb, batch_f)
+        _write_batch(self.pdb, batch_p)
 
     def _get_factor(self, entity: str, p: int) -> int:
         v = self.fdb.get(f"{entity}:{p}".encode())
