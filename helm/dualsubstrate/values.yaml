@@ -34,22 +34,19 @@ certificate:
     kind: ClusterIssuer
 
 gateway:
-  cors:
-    enabled: true
-    allowOrigin: "*"
-    allowHeaders:
-      - Content-Type
-      - Authorization
-      - X-Request-ID
-    allowMethods:
-      - GET
-      - POST
-      - OPTIONS
-  auth:
-    enabled: true
-    audience: ""
-    issuer: ""
-    jwksURL: ""
+  extraVolumes:
+    - name: jwt-pub
+      secret:
+        secretName: dualsubstrate-jwt-pub
+  extraVolumeMounts:
+    - name: jwt-pub
+      mountPath: /tls
+      readOnly: true
+  env:
+    - name: JWT_PUB_PEM
+      value: /tls/jwt.pub
+    - name: UPSTREAM_GRPC
+      value: "http://api:50051"
 
 livenessProbe:
   grpc:

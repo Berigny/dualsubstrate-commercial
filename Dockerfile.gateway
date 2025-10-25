@@ -1,21 +1,14 @@
-FROM golang:1.24-alpine AS builder
-RUN apk add --no-cache buf git
+FROM rust:1.78-alpine AS builder
+RUN apk add --no-cache musl-dev openssl-dev
 WORKDIR /app
+COPY Cargo.toml Cargo.lock ./
+COPY src src
+COPY gen/openapiv2 gen/openapiv2
+RUN cargo build --release --bin gateway
 
-COPY go.mod go.sum ./
-RUN go mod download
-
-COPY buf.yaml buf.gen.yaml buf.lock ./
-COPY proto proto
-RUN buf generate
-
-COPY cmd cmd
-RUN go build -o /gateway ./cmd/gateway
-
-FROM alpine:3.20
+FROM alpine:latest
 RUN apk add --no-cache ca-certificates
-COPY --from=builder /gateway /gateway
+COPY --from=builder /app/target/release/gateway /gateway
 COPY --from=builder /app/gen/openapiv2 /gen/openapiv2
 EXPOSE 8080
-ENV UPSTREAM_GRPC=api:50051
 CMD ["/gateway"]
