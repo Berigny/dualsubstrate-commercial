@@ -1,9 +1,20 @@
+"""gRPC client helpers for DualSubstrate."""
+
+from __future__ import annotations
+
 import grpc
-from api.gen.dualsubstrate.v1 import ledger_pb2 as pb
-from api.gen.dualsubstrate.v1 import ledger_pb2_grpc as rpc
-from api.gen.dualsubstrate.v1 import health_pb2 as ds_health_pb
-from api.gen.dualsubstrate.v1 import health_pb2_grpc as ds_health_rpc
 from grpc_health.v1 import health_pb2 as grpc_health_pb2, health_pb2_grpc as grpc_health_rpc
+
+try:  # prefer local bundled stubs
+    from dualsubstrate_sdk.gen.dualsubstrate.v1 import health_pb2 as ds_health_pb
+    from dualsubstrate_sdk.gen.dualsubstrate.v1 import health_pb2_grpc as ds_health_rpc
+    from dualsubstrate_sdk.gen.dualsubstrate.v1 import ledger_pb2 as pb
+    from dualsubstrate_sdk.gen.dualsubstrate.v1 import ledger_pb2_grpc as rpc
+except ImportError:  # fall back to repository layout
+    from api.gen.dualsubstrate.v1 import health_pb2 as ds_health_pb
+    from api.gen.dualsubstrate.v1 import health_pb2_grpc as ds_health_rpc
+    from api.gen.dualsubstrate.v1 import ledger_pb2 as pb
+    from api.gen.dualsubstrate.v1 import ledger_pb2_grpc as rpc
 
 
 class LedgerClient:

@@ -1,0 +1,37 @@
+{{- if .Values.slaAlerts.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "dualsubstrate.fullname" . }}-sla
+  labels:
+    {{- include "dualsubstrate.labels" . | nindent 4 }}
+{{- with .Values.slaAlerts.labels }}
+    {{- toYaml . | nindent 4 }}
+{{- end }}
+spec:
+  groups:
+    - name: dualsubstrate.sla
+      rules:
+        - alert: DualSubstrateHighLatency
+          expr: histogram_quantile(0.99, sum(rate(grpc_server_handling_seconds_bucket[5m])) by (le)) > 0.1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "DualSubstrate p99 latency above 100ms"
+            description: "p99 latency exceeded threshold for more than 5 minutes."
+{{- with .Values.slaAlerts.annotations }}
+            {{- toYaml . | nindent 12 }}
+{{- end }}
+        - alert: DualSubstrateErrorRatio
+          expr: rate(grpc_server_handled_total{code!="OK"}[5m]) / rate(grpc_server_handled_total[5m]) > 0.01
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "DualSubstrate gRPC error ratio above 1%"
+            description: "gRPC error ratio has been above 1% for more than 5 minutes."
+{{- with .Values.slaAlerts.annotations }}
+            {{- toYaml . | nindent 12 }}
+{{- end }}
+{{- end }}

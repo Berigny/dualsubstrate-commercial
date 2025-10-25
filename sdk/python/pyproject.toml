@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "dualsubstrate-sdk"
+version = "1.0.0"
+description = "DualSubstrate Python SDK with LangChain and LlamaIndex adapters"
+authors = ["DualSubstrate Engineering <eng@dualsubstrate.ai>"]
+readme = "README.md"
+packages = [
+  { include = "dualsubstrate_sdk", from = "src" }
+]
+license = "Apache-2.0"
+repository = "https://github.com/Berigny/dualsubstrate-commercial"
+homepage = "https://github.com/Berigny/dualsubstrate-commercial"
+keywords = ["dualsubstrate", "grpc", "vector", "sdk"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+grpcio = "^1.62.0"
+langchain = "^0.3.0"
+llama-index = "^0.11.0"
+requests = "^2.32.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.0"
+
+[build-system]
+requires = ["poetry-core>=1.7.0"]
+build-backend = "poetry.core.masonry.api"
