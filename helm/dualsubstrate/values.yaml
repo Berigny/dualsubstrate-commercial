@@ -15,6 +15,13 @@ server:
   tls:
     enabled: true
     secretName: dualsubstrate-tls
+  jwt:
+    enabled: false
+    audience: ""
+    issuer: ""
+    pubKeySecret:
+      name: ""
+      key: public.pem
 
 certificate:
   enabled: true
@@ -25,6 +32,24 @@ certificate:
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
+
+gateway:
+  cors:
+    enabled: true
+    allowOrigin: "*"
+    allowHeaders:
+      - Content-Type
+      - Authorization
+      - X-Request-ID
+    allowMethods:
+      - GET
+      - POST
+      - OPTIONS
+  auth:
+    enabled: true
+    audience: ""
+    issuer: ""
+    jwksURL: ""
 
 livenessProbe:
   grpc:
@@ -47,3 +72,8 @@ serviceMonitor:
   interval: 15s
   labels:
     release: kube-prometheus-stack
+
+slaAlerts:
+  enabled: true
+  labels: {}
+  annotations: {}

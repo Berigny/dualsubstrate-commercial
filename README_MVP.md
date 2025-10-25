@@ -68,7 +68,8 @@ make grpc.openapi
 #### Example (Python client)
 
 ```python
-from sdk.python.grpc_client import LedgerClient
+from dualsubstrate_sdk import LedgerClient
+
 c = LedgerClient("localhost:50051")
 
 print("health:", c.health())
