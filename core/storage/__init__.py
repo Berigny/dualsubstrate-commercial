@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from .rocksdb import (
     RocksLedgerStorage,
+    open_db,
     open_rocksdb,
     rocksdb_available,
     to_big_endian_timestamp,
@@ -11,7 +12,9 @@ from .rocksdb import (
 
 __all__ = [
     "RocksLedgerStorage",
+    "open_db",
     "open_rocksdb",
     "rocksdb_available",
     "to_big_endian_timestamp",
 ]
+

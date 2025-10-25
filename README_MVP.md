@@ -46,6 +46,61 @@ This starts the API on port 8000 and a Grafana stub on port 3000.
 - `ops/` – Docker, docker-compose, Grafana stub dashboard
 - `tests/` – pytest skeletons for core logic and API layer
 
+## Local RocksDB Workflow
+
+Short answer: RocksDB is fully embedded—no daemon required. Your app links the
+library and reads/writes files under `./data/ledger` by default.
+
+1. **Install dependencies**
+   ```bash
+   # macOS
+   brew install rocksdb
+   pip install rocksdict
+
+   # Linux (Ubuntu)
+   sudo apt-get update && sudo apt-get install -y librocksdb-dev
+   pip install rocksdict
+   ```
+2. **Open the DB (core/storage/rocksdb.py)**
+   ```python
+   from core.storage.rocksdb import open_db
+
+   db = open_db("./data/ledger")
+   db[b"case:1"] = b"\x01"
+   print(db[b"case:1"])
+   db.close()
+   ```
+3. **Choose a local path**
+   - Dev runs: `./data/ledger` (ignored by git)
+   - Tests: `./.tmp/ledger`
+   - Docker: mount a volume to `/var/lib/ledger`
+4. **Start services** – FastAPI opens its datastore at boot; point it to
+   `./data/ledger` for local runs. For a container run, mount the volume:
+   ```bash
+   docker run --rm -p 8000:8000 \
+     -v "$(pwd)/data/ledger:/var/lib/ledger" yourimage
+   ```
+5. **Smoke-test locally**
+   ```python
+   from core.storage.rocksdb import open_db
+
+   db = open_db()
+   db[b"case:1"] = b"\x01"
+   db[b"R:seed"] = b"\x9f\x03\xaa"
+   print("scan:", list(db.items()))
+   db.close()
+   ```
+6. **Backup / reset**
+   ```bash
+   cp -a ./data/ledger ./backups/ledger-$(date +%F)
+   rm -rf ./data/ledger && mkdir -p ./data/ledger
+   ```
+7. **Recommended settings** – keep the WAL enabled (default), run on SSD if
+   possible, and add a prefix extractor once you introduce p-adic prefix scans.
+
+See `ops/local.sh` for a self-contained local bootstrap that opens the DB,
+seeds a couple of buckets, and reports readiness.
+
 ## Interfaces
 
 ### gRPC + OpenAPI

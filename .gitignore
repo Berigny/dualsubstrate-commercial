@@ -1,0 +1,7 @@
+# Local RocksDB data and temp fixtures
+data/
+.tmp/
+
+# macOS metadata
+.DS_Store
+

@@ -197,13 +197,33 @@ def open_rocksdb(
     return RocksLedgerStorage(db)
 
 
+def open_db(
+    path: os.PathLike[str] | str = "./data/ledger",
+    *,
+    column_families: Iterable[ColumnFamily] = DEFAULT_COLUMN_FAMILIES,
+    create_if_missing: bool = True,
+    prefix_extractor: Optional[str] = None,
+):
+    """Convenience wrapper that returns the raw ``Rdict`` handle for local use."""
+
+    storage = open_rocksdb(
+        path,
+        column_families=column_families,
+        create_if_missing=create_if_missing,
+        prefix_extractor=prefix_extractor,
+    )
+    return storage.db
+
+
 __all__ = [
     "DEFAULT_COLUMN_FAMILIES",
     "LedgerKeys",
     "RocksLedgerStorage",
     "compose_index_key",
     "compose_key",
+    "open_db",
     "open_rocksdb",
     "rocksdb_available",
     "to_big_endian_timestamp",
 ]
+

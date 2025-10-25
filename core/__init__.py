@@ -6,7 +6,7 @@ from importlib import import_module
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
-__all__ = ["msd_q4", "ledger", "valuation", "checksum", "rotate", "core"]
+__all__ = ["msd_q4", "ledger", "valuation", "checksum", "rotate", "storage", "core"]
 
 if TYPE_CHECKING:  # pragma: no cover - for static analyzers only
     from . import checksum, ledger, msd_q4, rotate, valuation
@@ -58,7 +58,7 @@ def _build_core_fallback() -> Any:
 def __getattr__(name: str) -> Any:
     """Dynamically import submodules on first access."""
 
-    if name in {"msd_q4", "ledger", "valuation", "checksum", "rotate"}:
+    if name in {"msd_q4", "ledger", "valuation", "checksum", "rotate", "storage"}:
         module = import_module(f".{name}", __name__)
         globals()[name] = module
         return module
@@ -70,4 +70,3 @@ def __getattr__(name: str) -> Any:
         globals()[name] = module
         return module
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
