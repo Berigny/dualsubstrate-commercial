@@ -1,0 +1,13 @@
+[[bin]]
+name = "gateway"
+path = "src/gateway.rs"
+
+[dependencies]
+axum               = { version = "0.7", features = ["tower-log"] }
+tower              = "0.4"
+tower-http         = { version = "0.5", features = ["cors", "fs"] }
+hyper              = { version = "1", features = ["full"] }
+tokio              = { version = "1", features = ["full"] }
+jsonwebtoken       = "9"
+once_cell          = "1"
+serde              = { version = "1", features = ["derive"] }
