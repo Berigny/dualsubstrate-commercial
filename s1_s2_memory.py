@@ -16,8 +16,15 @@ import re
 import time
 import hashlib
 from dataclasses import dataclass, field
-from typing import Callable, Deque, Iterable, List, Optional
+from typing import Callable, Deque, Iterable, List, Optional, Tuple, Set, Dict
 from collections import deque
+
+from memory_governance import (
+    GovernanceDecision,
+    MemoryAction,
+    MemoryZone,
+    evaluate_memory_action,
+)
 
 
 def _normalise_text(text: str) -> str:
@@ -37,18 +44,22 @@ def _sigmoid(x: float) -> float:
     return 1.0 / (1.0 + math.exp(-x))
 
 
+def _tokenise(text: str) -> List[str]:
+    return re.findall(r"[a-z0-9]+", text.lower())
+
+
 class S1Salience:
     """
     Extremely small salience model:
     - hash 4-gram characters into a 16-d bag
-    - apply a fixed weight vector + sigmoid
+    - compare against a running baseline and gate via sigmoid
     """
 
-    def __init__(self, *, seed: int = 1337) -> None:
-        import random
-
-        rnd = random.Random(seed)
-        self._weights = [rnd.uniform(-0.4, 0.4) for _ in range(16)]
+    def __init__(self, *, alpha: float = 0.12, sensitivity: float = 8.0, offset: float = 0.25) -> None:
+        self._baseline = [0.0] * 16
+        self._alpha = alpha
+        self._sensitivity = sensitivity
+        self._offset = offset
 
     @staticmethod
     def _features(text: str) -> List[float]:
@@ -62,8 +73,12 @@ class S1Salience:
 
     def score(self, text: str) -> float:
         feats = self._features(text)
-        dot = sum(f * w for f, w in zip(feats, self._weights))
-        return _sigmoid(dot)
+        diff = math.sqrt(sum((f - b) ** 2 for f, b in zip(feats, self._baseline)))
+        score = _sigmoid(self._sensitivity * (diff - self._offset))
+        self._baseline = [
+            (1.0 - self._alpha) * b + self._alpha * f for b, f in zip(self._baseline, feats)
+        ]
+        return score
 
 
 @dataclass
@@ -72,6 +87,9 @@ class MemoryEvent:
     text: str
     score: float
     timestamp: float
+    consilience: float
+    zone: MemoryZone
+    tokens: Set[str]
 
 
 class S2Consolidator:
@@ -105,10 +123,21 @@ def parse_payload(value: str) -> str:
 
 
 @dataclass
-class MemoryResponse:
+class ConsolidationResult:
     fact: Optional[str]
+    decision: Optional[GovernanceDecision]
+    event: Optional[MemoryEvent]
+
+
+@dataclass
+class MemoryResponse:
     stored: bool
-    score: Optional[float] = None
+    salience_score: Optional[float] = None
+    consilience: Optional[float] = None
+    zone: Optional[MemoryZone] = None
+    storage_notes: List[str] = field(default_factory=list)
+    injected_fact: Optional[str] = None
+    injection_notes: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -127,8 +156,8 @@ class MemoryLoop:
     """
 
     threshold: float = 0.7
-    max_events: int = 6
-    silence_window: float = 30.0
+    max_events: int = 3
+    silence_window: float = 18.0
     _events: Deque[MemoryEvent] = field(default_factory=lambda: deque(maxlen=32))
     _events_since_consolidate: int = 0
     _last_salient_at: Optional[float] = None
@@ -136,6 +165,7 @@ class MemoryLoop:
     _injected_keys: set[str] = field(default_factory=set)
     _s1: S1Salience = field(default_factory=S1Salience)
     _s2: S2Consolidator = field(default_factory=S2Consolidator)
+    _daily_counts: Dict[MemoryAction, Tuple[str, int]] = field(default_factory=dict)
 
     def reset(self) -> None:
         self._events.clear()
@@ -143,6 +173,34 @@ class MemoryLoop:
         self._last_salient_at = None
         self._last_consolidated_at = None
         self._injected_keys.clear()
+        self._daily_counts.clear()
+
+    def _get_daily_count(self, action: MemoryAction, now: float) -> int:
+        date = time.strftime("%Y-%m-%d", time.localtime(now))
+        stored_date, count = self._daily_counts.get(action, (date, 0))
+        if stored_date != date:
+            count = 0
+        self._daily_counts[action] = (date, count)
+        return count
+
+    def _increment_daily_count(self, action: MemoryAction, now: float) -> None:
+        date = time.strftime("%Y-%m-%d", time.localtime(now))
+        stored_date, count = self._daily_counts.get(action, (date, 0))
+        if stored_date != date:
+            count = 0
+        self._daily_counts[action] = (date, count + 1)
+
+    def _consilience_score(self, tokens: Set[str]) -> float:
+        if not self._events or not tokens:
+            return 0.0
+        scores: List[float] = []
+        for event in self._events:
+            union = len(tokens | event.tokens)
+            if union == 0:
+                continue
+            intersection = len(tokens & event.tokens)
+            scores.append(intersection / union)
+        return sum(scores) / len(scores) if scores else 0.0
 
     def process(
         self,
@@ -152,45 +210,111 @@ class MemoryLoop:
         fetch_fn: Callable[[bytes], Optional[str]],
         now: Optional[float] = None,
     ) -> MemoryResponse:
-        """
-        Process an utterance, storing it when salient and optionally returning a
-        fact to inject.
-        """
+        """Process an utterance and run governance-aware S1/S2 logic."""
 
         now = now or time.time()
         normalised = _normalise_text(text)
         if not normalised:
-            return MemoryResponse(fact=None, stored=False, score=None)
+            return MemoryResponse(stored=False)
 
-        score = self._s1.score(normalised)
-        stored = False
-        fact: Optional[str] = None
+        tokens = set(_tokenise(normalised))
+        salience = self._s1.score(normalised)
+        consilience = self._consilience_score(tokens)
 
-        if score >= self.threshold:
-            key_bytes = deterministic_key(normalised)
-            key_hex = key_bytes.hex()
-            payload = json.dumps(
-                {"text": normalised, "score": score, "timestamp": now}, separators=(",", ":")
+        store_count = self._get_daily_count(MemoryAction.STORE, now)
+        store_decision = evaluate_memory_action(MemoryAction.STORE, consilience, store_count)
+
+        response = MemoryResponse(
+            stored=False,
+            salience_score=salience,
+            consilience=consilience,
+            zone=store_decision.zone,
+            storage_notes=list(store_decision.notes),
+        )
+
+        if salience < self.threshold:
+            response.storage_notes.append(
+                f"Salience {salience:.2f} below threshold {self.threshold:.2f}; not stored."
             )
-            store_fn(key_bytes, payload)
-            self._events.append(MemoryEvent(key_hex, normalised, score, now))
-            self._events_since_consolidate += 1
-            self._last_salient_at = now
-            stored = True
+            consolidation = self._maybe_consolidate_on_timeout(fetch_fn, now)
+            if consolidation and consolidation.fact:
+                response.injected_fact = consolidation.fact
+                if consolidation.decision:
+                    response.zone = consolidation.decision.zone
+                    response.injection_notes = list(consolidation.decision.notes)
+                    if consolidation.decision.requires_confirmation:
+                        response.injection_notes.append("Injection required confirmation (auto accepted).")
+            return response
 
-            if self._events_since_consolidate >= self.max_events:
-                fact = self._consolidate(fetch_fn, now)
+        self._last_salient_at = now
+
+        if not store_decision.allowed:
+            if store_decision.reason:
+                response.storage_notes.append(store_decision.reason)
+            # Even if not stored, allow time-based consolidation to proceed.
+            consolidation = self._maybe_consolidate_on_timeout(fetch_fn, now)
+            if consolidation and consolidation.fact:
+                response.injected_fact = consolidation.fact
+                if consolidation.decision:
+                    response.zone = consolidation.decision.zone
+                    response.injection_notes = list(consolidation.decision.notes)
+                    if consolidation.decision.requires_confirmation:
+                        response.injection_notes.append("Injection required confirmation (auto accepted).")
+            return response
+
+        # Store in Qp and update local memory event log.
+        key_bytes = deterministic_key(normalised)
+        key_hex = key_bytes.hex()
+        payload = json.dumps(
+            {
+                "text": normalised,
+                "score": salience,
+                "timestamp": now,
+                "consilience": consilience,
+                "zone": store_decision.zone.value,
+            },
+            separators=(",", ":"),
+        )
+        store_fn(key_bytes, payload)
+        self._increment_daily_count(MemoryAction.STORE, now)
+
+        event = MemoryEvent(
+            key_hex=key_hex,
+            text=normalised,
+            score=salience,
+            timestamp=now,
+            consilience=consilience,
+            zone=store_decision.zone,
+            tokens=tokens,
+        )
+        self._events.append(event)
+        self._events_since_consolidate += 1
+        response.stored = True
+        if store_decision.requires_audit:
+            response.storage_notes.append("Audit recommended for stored memory.")
+
+        consolidation: Optional[ConsolidationResult] = None
+        if self._events_since_consolidate >= self.max_events:
+            consolidation = self._consolidate(fetch_fn, now)
         else:
-            fact = self._maybe_consolidate_on_timeout(fetch_fn, now)
+            consolidation = self._maybe_consolidate_on_timeout(fetch_fn, now)
 
-        return MemoryResponse(fact=fact, stored=stored, score=score if stored else None)
+        if consolidation and consolidation.fact:
+            response.injected_fact = consolidation.fact
+            if consolidation.decision:
+                response.zone = consolidation.decision.zone
+                response.injection_notes = list(consolidation.decision.notes)
+                if consolidation.decision.requires_confirmation:
+                    response.injection_notes.append("Injection required confirmation (auto accepted).")
+
+        return response
 
     def force_consolidate(
         self,
         fetch_fn: Callable[[bytes], Optional[str]],
         *,
         now: Optional[float] = None,
-    ) -> Optional[str]:
+    ) -> Optional[ConsolidationResult]:
         """Force a consolidation pass."""
 
         now = now or time.time()
@@ -201,7 +325,7 @@ class MemoryLoop:
         self,
         fetch_fn: Callable[[bytes], Optional[str]],
         now: float,
-    ) -> Optional[str]:
+    ) -> Optional[ConsolidationResult]:
         if (
             self._events_since_consolidate > 0
             and self._last_salient_at is not None
@@ -214,10 +338,14 @@ class MemoryLoop:
         self,
         fetch_fn: Callable[[bytes], Optional[str]],
         now: float,
-    ) -> Optional[str]:
+    ) -> Optional[ConsolidationResult]:
         ranked = self._s2.rank(self._events)
         for event in ranked:
             if event.key_hex in self._injected_keys:
+                continue
+            inject_count = self._get_daily_count(MemoryAction.INJECT, now)
+            decision = evaluate_memory_action(MemoryAction.INJECT, event.consilience, inject_count)
+            if not decision.allowed:
                 continue
             raw = fetch_fn(bytes.fromhex(event.key_hex))
             text = parse_payload(raw) if raw is not None else event.text
@@ -226,5 +354,6 @@ class MemoryLoop:
             self._events_since_consolidate = 0
             self._last_consolidated_at = now
             self._injected_keys.add(event.key_hex)
-            return text
+            self._increment_daily_count(MemoryAction.INJECT, now)
+            return ConsolidationResult(fact=text, decision=decision, event=event)
         return None

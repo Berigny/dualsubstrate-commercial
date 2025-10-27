@@ -18,6 +18,10 @@ st.title("🎙️ Dual-Substrate Audio Memory Demo")
 API_HEADERS: dict[str, str] = {}
 openai_client: OpenAI | None = None
 
+
+def _clean_secret(value: str) -> str:
+    return "".join(ch for ch in value if not ch.isspace())
+
 # ---------- helpers ----------
 def qp_put(key: bytes, value: str):
     url = f"{FASTAPI_ROOT}/qp/{key.hex()}"
@@ -37,7 +41,7 @@ def qp_get(key: bytes) -> str | None:
 # ---------- sidebar ----------
 with st.sidebar:
     default_openai_key = os.getenv("OPENAI_API_KEY", "")
-    api_key = st.text_input(
+    raw_api_key = st.text_input(
         "OpenAI API key",
         type="password",
         value=default_openai_key,
@@ -50,12 +54,14 @@ with st.sidebar:
     )
     FASTAPI_ROOT = fastapi_root_input.rstrip("/") or FASTAPI_ROOT_DEFAULT
     default_fastapi_key = os.getenv("DUALSUBSTRATE_API_KEY", "")
-    fastapi_api_key = st.text_input(
+    raw_fastapi_key = st.text_input(
         "DualSubstrate API key",
         type="password",
         value=default_fastapi_key,
         help="Matches the API_KEYS value used when starting uvicorn.",
     )
+    api_key = _clean_secret(raw_api_key)
+    fastapi_api_key = _clean_secret(raw_fastapi_key)
     if not fastapi_api_key:
         st.info("Enter a DualSubstrate API key to continue.")
         st.stop()
@@ -144,11 +150,18 @@ if audio_input:
 
     user_text = text
     if outcome:
-        if outcome.stored and outcome.score is not None:
-            st.caption(f"Salience score {outcome.score:.2f} → stored in Qp")
-        if outcome.fact:
-            add_fact(outcome.fact)
-            user_text = f"{user_text}\n[Memory: {outcome.fact}]"
+        if outcome.zone:
+            zone_label = outcome.zone.value.capitalize()
+            st.caption(
+                f"Zone: {zone_label} • Salience {outcome.salience_score or 0:.2f} • Consilience {outcome.consilience or 0:.2f}"
+            )
+        for note in outcome.storage_notes:
+            st.caption(f"• {note}")
+        if outcome.injected_fact:
+            add_fact(outcome.injected_fact)
+            user_text = f"{user_text}\n[Memory: {outcome.injected_fact}]"
+            for note in outcome.injection_notes:
+                st.caption(f"• {note}")
 
     bot = reply(user_text)
     with st.chat_message("assistant"):
@@ -158,12 +171,17 @@ if audio_input:
 if st.button("Stop talking"):
     st.session_state.start_time = None
     try:
-        fact = memory_loop.force_consolidate(qp_get)
+        result = memory_loop.force_consolidate(qp_get)
     except requests.RequestException as exc:
         st.warning(f"Memory consolidation error: {exc}")
-        fact = None
-    if fact:
-        add_fact(fact)
+        result = None
+    if result and result.fact:
+        add_fact(result.fact)
+        if result.decision:
+            zone_label = result.decision.zone.value.capitalize()
+            st.caption(f"Forced consolidate ({zone_label} zone)")
+            for note in result.decision.notes:
+                st.caption(f"• {note}")
 
 if st.session_state.facts:
     with st.expander("Retrieved facts"):

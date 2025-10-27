@@ -16,7 +16,7 @@ PROTO_DIR := proto
 GEN_PY := api/gen
 OPENAPI_OUT := openapi
 
-.PHONY: help venv setup run test streamlit streamlit-stop streamlit-deps grpc.gen grpc.openapi grpc.run clean
+.PHONY: help venv setup run test streamlit streamlit-stop streamlit-deps grpc.gen grpc.openapi grpc.run clean clean-data
 
 help:
 	@echo "Common targets:"
@@ -27,6 +27,7 @@ help:
 	@echo "  make streamlit # launch Streamlit audio chat demo"
 	@echo "  make streamlit-stop # terminate running Streamlit demo"
 	@echo "  make clean    # remove virtualenv + Python caches"
+	@echo "  make clean-data # wipe RocksDB data/event logs (stop uvicorn first!)"
 
 venv: $(VENV_BIN)/python
 
@@ -66,6 +67,10 @@ streamlit-stop:
 clean:
 	rm -rf $(VENV) $(OPENAPI_OUT)
 	$(PYTHON) $(CLEAN_SCRIPT)
+
+clean-data:
+	rm -rf data/event.log data/factors data/postings
+	mkdir -p data
 
 grpc.gen: setup $(VENV)/.grpc-installed
 	$(PYTHON_BIN) -m grpc_tools.protoc \
