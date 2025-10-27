@@ -151,6 +151,8 @@
   navigator.mediaDevices
     .getUserMedia({ audio: true })
     .then((stream) => {
+      badgeEl.textContent = 'Microphone active';
+      badgeEl.classList.add('active');
       const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
       const audioContext = new (window.AudioContext || window.webkitAudioContext)();
       const analyser = audioContext.createAnalyser();
@@ -220,5 +222,6 @@
     .catch((err) => {
       updateLog(`Microphone error: ${err.message}`);
       badgeEl.textContent = 'Microphone permission denied.';
+      badgeEl.classList.remove('active');
     });
 })();
