@@ -3,7 +3,9 @@
 
   const config = window.liveMemoryConfig || {};
   const wsPort = config.wsPort || null;
+  const wsHostOverride = config.wsHost && config.wsHost.length ? config.wsHost : null;
   const wsRoute = config.wsRoute || '/ws';
+  const pcmRoute = config.pcmRoute || null;
   const exactBase = config.exactBase || '/exact';
   const badgeEl = document.getElementById('badge');
   const listEl = document.getElementById('keys');
@@ -24,9 +26,24 @@
     badgeEl.classList.remove('active');
   }
 
-  const wsHost = wsPort ? `${window.location.hostname}:${wsPort}` : window.location.host;
+  const hostForSocket = wsHostOverride
+    ? wsHostOverride
+    : wsPort
+    ? `${window.location.hostname}:${wsPort}`
+    : window.location.host;
   const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  const socket = new WebSocket(`${wsProtocol}://${wsHost}${wsRoute}`);
+  const socket = new WebSocket(`${wsProtocol}://${hostForSocket}${wsRoute}`);
+  let pcmSocket = null;
+  if (pcmRoute) {
+    try {
+      pcmSocket = new WebSocket(`${wsProtocol}://${hostForSocket}${pcmRoute}`);
+      pcmSocket.addEventListener('open', () => updateLog('PCM WebSocket connected.'));
+      pcmSocket.addEventListener('close', () => updateLog('PCM WebSocket disconnected.'));
+    } catch (err) {
+      updateLog(`PCM WebSocket error: ${err}`);
+      pcmSocket = null;
+    }
+  }
 
   let currentEnergy = 0;
   const vadThreshold = typeof config.vadThreshold === 'number' ? config.vadThreshold : 12;
@@ -180,8 +197,19 @@
         }
         if (pending.length >= 4) {
           const blob = new Blob(pending.splice(0, pending.length), { type: 'audio/webm' });
-          if (currentEnergy > vadThreshold && socket.readyState === WebSocket.OPEN) {
-            blob.arrayBuffer().then((buffer) => socket.send(buffer));
+          if (currentEnergy > vadThreshold) {
+            blob.arrayBuffer().then((buffer) => {
+              if (socket.readyState === WebSocket.OPEN) {
+                socket.send(buffer);
+              }
+              if (pcmSocket && pcmSocket.readyState === WebSocket.OPEN) {
+                try {
+                  pcmSocket.send(buffer);
+                } catch (err) {
+                  updateLog(`PCM send error: ${err}`);
+                }
+              }
+            });
           }
         }
       };

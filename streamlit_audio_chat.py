@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import socket
 import threading
 import time
 from io import BytesIO
@@ -23,7 +24,6 @@ import uvicorn
 # Shared helpers
 # ---------------------------------------------------------------------------
 
-WS_PORT = int(os.getenv("STREAMLIT_WS_PORT", "8765"))
 WS_ROUTE = "/ws"
 PCM_ROUTE = "/pcm"
 
@@ -49,6 +49,35 @@ def _get_state() -> Dict[str, Any]:
 
 def _clean_secret(value: str) -> str:
     return "".join(ch for ch in value if not ch.isspace())
+
+
+def _free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("", 0))
+        return s.getsockname()[1]
+
+
+def _host_from_url(url: str) -> str:
+    if not url:
+        return ""
+    return url.replace("https://", "").replace("http://", "").split("/")[0]
+
+
+try:
+    _secrets_fastapi_root = st.secrets.get("FASTAPI_ROOT", "")
+except Exception:  # pragma: no cover - secrets may be absent locally
+    _secrets_fastapi_root = ""
+
+_env_fastapi_root = os.getenv("FASTAPI_ROOT", "")
+_default_fastapi_root = _secrets_fastapi_root or _env_fastapi_root
+_default_fastapi_host = _host_from_url(_default_fastapi_root)
+ON_CLOUD = bool(_default_fastapi_host and _default_fastapi_host not in {"localhost", "127.0.0.1"})
+
+if ON_CLOUD:
+    WS_PORT: int | None = None
+else:
+    WS_PORT = _free_port()
+    os.environ["STREAMLIT_WS_PORT"] = str(WS_PORT)
 
 
 # ---------------------------------------------------------------------------
@@ -193,6 +222,8 @@ def proxy_exact(key_hex: str) -> JSONResponse:
 
 
 def _run_ws_server() -> None:
+    if WS_PORT is None:
+        return
     asyncio.set_event_loop(asyncio.new_event_loop())
 
     def _pcm_sender() -> None:
@@ -304,10 +335,15 @@ _set_state(
     client=openai_client,
 )
 
-if "ws_thread" not in st.session_state or st.session_state.ws_thread is None or not st.session_state.ws_thread.is_alive():
-    ws_thread = threading.Thread(target=_run_ws_server, daemon=True)
-    ws_thread.start()
-    st.session_state.ws_thread = ws_thread
+if not ON_CLOUD:
+    if (
+        "ws_thread" not in st.session_state
+        or st.session_state.ws_thread is None
+        or not st.session_state.ws_thread.is_alive()
+    ):
+        ws_thread = threading.Thread(target=_run_ws_server, daemon=True)
+        ws_thread.start()
+        st.session_state.ws_thread = ws_thread
 
 st.markdown(
     """
@@ -335,21 +371,20 @@ else:
 
 st.subheader("Step 2 – Live console")
 component_js = (
-    Path(__file__).parent
-    / "streamlit"
-    / "components"
-    / "live_memory_v2.js"
-).read_text(
-    encoding="utf-8"
-)
+    Path(__file__).parent / "streamlit" / "components" / "live_memory.js"
+).read_text(encoding="utf-8")
+
 component_config = {
-    "wsPort": WS_PORT,
     "wsRoute": WS_ROUTE,
     "pcmRoute": PCM_ROUTE,
     "exactBase": "/exact",
     "vadThreshold": float(vad_threshold),
     "baseline": False,
 }
+if WS_PORT is not None:
+    component_config["wsPort"] = WS_PORT
+else:
+    component_config["wsHost"] = _host_from_url(backend_base)
 
 styles = """
 <style>
@@ -388,7 +423,6 @@ html = f"""
 </div>
 <script>window.liveMemoryConfig = {json.dumps(component_config)};</script>
 {styles}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsSHA/3.3.1/sha.min.js"></script>
 <script>{component_js}</script>
 """
 
