@@ -63,6 +63,10 @@ class RotateResp(BaseModel):
     energy_cycles: int
 
 
+class QpPut(BaseModel):
+    value: str
+
+
 class Edge(BaseModel):
     src: int
     dst: int
@@ -246,3 +250,31 @@ def traverse(
 @app.get("/centroid")
 def centroid_now():
     return {"centroid": _centroid_now()}
+
+
+@app.post("/qp/{key}")
+def qp_put(key: str, req: QpPut, _: str = Depends(require_key)):
+    """Store a value in the Qp column family."""
+    try:
+        key_bytes = bytes.fromhex(key)
+        if len(key_bytes) != 16:
+            raise ValueError
+    except ValueError:
+        raise HTTPException(422, "Key must be a 16-byte hex string.")
+    ledger.qp_put(key_bytes, req.value)
+    return {"status": "ok"}
+
+
+@app.get("/qp/{key}")
+def qp_get(key: str, _: str = Depends(require_key)):
+    """Retrieve a value from the Qp column family."""
+    try:
+        key_bytes = bytes.fromhex(key)
+        if len(key_bytes) != 16:
+            raise ValueError
+    except ValueError:
+        raise HTTPException(422, "Key must be a 16-byte hex string.")
+    value = ledger.qp_get(key_bytes)
+    if value is None:
+        raise HTTPException(404, "Key not found.")
+    return {"key": key, "value": value}

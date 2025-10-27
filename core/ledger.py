@@ -19,6 +19,8 @@ EVENT_LOG = os.getenv("EVENT_LOG_PATH", "/data/event.log")
 FACTORS_DB = "/data/factors"
 POSTINGS_DB = "/data/postings"
 PRIME_ARRAY: Tuple[int, ...] = (2, 3, 5, 7, 11, 13, 17, 19)
+QP_CF_NAME = b"Qp"
+
 
 class _InMemoryIterator:
     def __init__(self, data: Dict[bytes, bytes]):
@@ -73,10 +75,17 @@ def _open_db(path, cf_names):
     if rocksdb is None:
         return _InMemoryDB()
     opts = rocksdb.Options(create_if_missing=True)
+    try:
+        current_cfs = rocksdb.list_column_families(path, opts)
+    except rocksdb.errors.NotFound:
+        current_cfs = ["default"]
+    all_cfs = set(current_cfs)
+    for name in cf_names:
+        all_cfs.add(name)
     return rocksdb.DB(
         path,
         opts,
-        column_families={name: rocksdb.ColumnFamilyOptions() for name in cf_names},
+        column_families={name: rocksdb.ColumnFamilyOptions() for name in all_cfs},
     )
 
 
@@ -94,9 +103,29 @@ def _write_batch(db, batch) -> None:
 
 class Ledger:
     def __init__(self):
-        self.fdb = _open_db(FACTORS_DB, ["default"])
+        self.fdb = _open_db(FACTORS_DB, ["default", QP_CF_NAME])
         self.pdb = _open_db(POSTINGS_DB, ["default"])
         self.log = self._open_event_log()
+        if rocksdb:
+            try:
+                self.qp_cf = self.fdb.get_column_family(QP_CF_NAME)
+            except KeyError:
+                self.qp_cf = self.fdb.create_column_family(QP_CF_NAME)
+
+    def qp_put(self, key: bytes, value: str) -> None:
+        """Store a value in the Qp column family."""
+        if rocksdb:
+            self.fdb.put((self.qp_cf, key), value.encode())
+        else:
+            self.fdb.put(key, value.encode())
+
+    def qp_get(self, key: bytes) -> str | None:
+        """Retrieve a value from the Qp column family."""
+        if rocksdb:
+            val = self.fdb.get((self.qp_cf, key))
+        else:
+            val = self.fdb.get(key)
+        return val.decode() if val else None
 
     @staticmethod
     def _open_event_log():
