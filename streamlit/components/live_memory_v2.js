@@ -2,7 +2,6 @@
   'use strict';
 
   const CFG = window.liveMemoryConfig || {};
-  const wsPort = CFG.wsPort || null;
   const wsRoute = CFG.wsRoute || '/ws';
   const pcmRoute = CFG.pcmRoute || '/pcm';
   const exactBase = CFG.exactBase || '/exact';
@@ -31,11 +30,11 @@
   const storedItems = [];
   const shaObj = typeof jsSHA === 'function' ? new jsSHA('SHA-256', 'TEXT') : null;
 
-  const wsHost = wsPort ? `${window.location.hostname}:${wsPort}` : window.location.host;
-  const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = CFG.wsHost || window.location.host;
 
-  const apiSocket = new WebSocket(`${wsProtocol}://${wsHost}${wsRoute}`);
-  const pcmSocket = new WebSocket(`${wsProtocol}://${wsHost}${pcmRoute}`);
+  const apiSocket = new WebSocket(`${protocol}//${host}${wsRoute}`);
+  const pcmSocket = new WebSocket(`${protocol}//${host}${pcmRoute}`);
   pcmSocket.binaryType = 'arraybuffer';
 
   let captureStarted = false;
