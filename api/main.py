@@ -4,6 +4,7 @@ DualSubstrate API – ledger + Metatron-star flow-rule enforcement
 from fastapi import FastAPI, HTTPException, Depends, Query, Request
 from pydantic import BaseModel, conint
 from typing import List, Tuple, Literal, Callable
+import json
 import time
 
 # ---------- imports ----------
@@ -11,6 +12,7 @@ import flow_rule  # our Rust wheel
 from core import core as core_rs  # PyO3 bindings (quaternion pack/rotate)
 from core.ledger import Ledger, PRIME_ARRAY  # the RocksDB wrapper we wrote earlier
 from deps import require_key, limiter
+from s1_s2_memory import S1Salience, deterministic_key
 
 # ---------- flow-rule bridge ----------
 _ALLOWED_DIRECT = {(1, 2), (5, 6), (3, 0), (7, 4), (1, 0)}
@@ -65,6 +67,12 @@ class RotateResp(BaseModel):
 
 class QpPut(BaseModel):
     value: str
+
+
+class SalienceReq(BaseModel):
+    utterance: str
+    timestamp: float | None = None
+    threshold: float | None = None
 
 
 class Edge(BaseModel):
@@ -126,6 +134,8 @@ def _legalise_transition(src_node: int, dst_node: int) -> Tuple[bool, bool]:
 # ---------- FastAPI ----------
 app = FastAPI(title="DualSubstrate – Flow-Rule Ledger", version="0.3.0")
 ledger = Ledger()  # RocksDB + S3 log
+_SALIENCE_MODEL = S1Salience()
+SALIENT_THRESHOLD = 0.7
 
 
 @app.get("/")
@@ -278,3 +288,57 @@ def qp_get(key: str, _: str = Depends(require_key)):
     if value is None:
         raise HTTPException(404, "Key not found.")
     return {"key": key, "value": value}
+
+
+@app.post("/salience")
+@limiter.limit("200/minute")
+def store_if_salient(req: SalienceReq, request: Request, _: str = Depends(require_key)):
+    """Score ``utterance`` and persist to Qp when salient."""
+
+    utterance = req.utterance.strip()
+    if not utterance:
+        raise HTTPException(422, "Utterance must not be empty.")
+
+    score = float(_SALIENCE_MODEL.score(utterance))
+    threshold = SALIENT_THRESHOLD if req.threshold is None else float(req.threshold)
+    threshold = max(0.0, min(1.0, threshold))
+    if score > threshold:
+        key_bytes = deterministic_key(utterance)
+        payload = json.dumps({
+            "text": utterance,
+            "t": req.timestamp or time.time(),
+            "score": score,
+        })
+        ledger.qp_put(key_bytes, payload)
+        return {
+            "stored": True,
+            "key": key_bytes.hex(),
+            "len": len(utterance),
+            "score": score,
+            "text": utterance,
+            "threshold": threshold,
+        }
+
+    return {"stored": False, "score": score, "text": utterance, "threshold": threshold}
+
+
+@app.get("/exact/{key}")
+@limiter.limit("300/minute")
+def exact_memory(key: str, request: Request, _: str = Depends(require_key)):
+    """Return the stored JSON payload for ``key`` from the Qp column family."""
+
+    try:
+        key_bytes = bytes.fromhex(key)
+        if len(key_bytes) != 16:
+            raise ValueError
+    except ValueError:
+        raise HTTPException(422, "Key must be a 16-byte hex string.")
+
+    value = ledger.qp_get(key_bytes)
+    if value is None:
+        raise HTTPException(404, "Key not found.")
+
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        return {"text": value}

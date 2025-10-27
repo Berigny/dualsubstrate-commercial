@@ -65,7 +65,10 @@ def _open_db(path: str):
     if HAS_ROCKS:
         db_path = Path(path)
         db_path.parent.mkdir(parents=True, exist_ok=True)
-        return open_rocksdb(db_path)
+        try:
+            return open_rocksdb(db_path)
+        except Exception:  # pragma: no cover - fallback when RocksDB unavailable
+            return _InMemoryDB()
     return _InMemoryDB()
 
 
