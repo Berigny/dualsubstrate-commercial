@@ -1,3 +1,5 @@
+"""Streamlit UI for Dual-Substrate live memory demo."""
+
 import asyncio
 import json
 import os
@@ -16,9 +18,13 @@ from fastapi.websockets import WebSocketDisconnect
 from openai import OpenAI
 import uvicorn
 
+
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+
 WS_PORT = int(os.getenv("STREAMLIT_WS_PORT", "8765"))
 WS_ROUTE = "/ws"
-
 
 STATE_LOCK = threading.Lock()
 WS_STATE: Dict[str, Any] = {
@@ -40,6 +46,14 @@ def _get_state() -> Dict[str, Any]:
         return dict(WS_STATE)
 
 
+def _clean_secret(value: str) -> str:
+    return "".join(ch for ch in value if not ch.isspace())
+
+
+# ---------------------------------------------------------------------------
+# Live console backend (WebSocket + /exact proxy)
+# ---------------------------------------------------------------------------
+
 def _transcribe_chunk(data: bytes) -> str:
     state = _get_state()
     client: OpenAI | None = state.get("client")
@@ -48,14 +62,21 @@ def _transcribe_chunk(data: bytes) -> str:
     audio = BytesIO(data)
     audio.name = "chunk.webm"
     transcript = client.audio.transcriptions.create(model="whisper-1", file=audio)
-    text = (transcript.text or "").strip()
-    return text
+    return (transcript.text or "").strip()
 
 
-def _call_salience(backend: str, headers: Dict[str, str], text: str, threshold: float, timestamp: float) -> Dict[str, Any]:
+def _call_salience(
+    backend: str,
+    headers: Dict[str, str],
+    text: str,
+    threshold: float,
+    timestamp: float,
+) -> Dict[str, Any]:
     payload = {"utterance": text, "timestamp": timestamp, "threshold": threshold}
     try:
-        response = requests.post(f"{backend}/salience", json=payload, headers=headers, timeout=15)
+        response = requests.post(
+            f"{backend}/salience", json=payload, headers=headers, timeout=15
+        )
         response.raise_for_status()
         data = response.json()
     except requests.RequestException as exc:
@@ -160,9 +181,15 @@ def _run_ws_server() -> None:
     uvicorn.run(app, host="0.0.0.0", port=WS_PORT, log_level="error")
 
 
-st.set_page_config(page_title="Dual-Substrate Live Memory", layout="wide")
-st.title("🔴 Live exact-memory demo")
-st.write("Talk continuously – watch every salient fragment appear **bit-exact** in Qp.")
+# ---------------------------------------------------------------------------
+# Streamlit front-end
+# ---------------------------------------------------------------------------
+
+st.set_page_config(page_title="Dual-Substrate Audio Memory", layout="wide")
+st.title("Dual-Substrate Audio Memory")
+st.caption(
+    "Grant the microphone once, then watch the live console stream salient fragments into the substrate."
+)
 
 with st.sidebar:
     st.header("Configuration")
@@ -172,20 +199,22 @@ with st.sidebar:
         value=default_backend,
         help="Local development defaults to http://localhost:8000",
     )
-    dualsubstrate_key = st.text_input(
+    dualsubstrate_key_input = st.text_input(
         "DualSubstrate API key",
         type="password",
         value=os.getenv("DUALSUBSTRATE_API_KEY", ""),
     )
-    openai_key = st.text_input(
+    openai_key_input = st.text_input(
         "OpenAI API key",
         type="password",
         value=os.getenv("OPENAI_API_KEY", ""),
     )
-    salience_threshold = st.slider("Salience threshold", 0.1, 0.95, 0.7, 0.05)
+    salience_threshold = st.slider("Salience threshold (S₁ – websocket)", 0.3, 0.95, 0.7, 0.05)
     vad_threshold = st.slider("VAD energy threshold", 5.0, 40.0, 12.0, 0.5)
 
 backend_base = backend_input.rstrip("/") or default_backend
+dualsubstrate_key = _clean_secret(dualsubstrate_key_input)
+openai_key = _clean_secret(openai_key_input)
 
 if not dualsubstrate_key:
     st.warning("Enter a DualSubstrate API key to continue.")
@@ -195,19 +224,15 @@ if not openai_key:
     st.warning("Enter an OpenAI API key to continue.")
     st.stop()
 
-baseline_mode = st.checkbox("Disable substrate (pure LLM baseline)")
-if baseline_mode:
-    st.warning("Substrate writes disabled – LLM context only.")
-else:
-    st.success("Substrate enabled – salient fragments persist in Qp.")
-
+API_HEADERS = {"Authorization": f"Bearer {dualsubstrate_key}"}
+openai_client = OpenAI(api_key=openai_key)
 
 _set_state(
     backend=backend_base,
-    headers={"Authorization": f"Bearer {dualsubstrate_key}"},
+    headers=API_HEADERS,
     threshold=float(salience_threshold),
-    baseline=baseline_mode,
-    client=OpenAI(api_key=openai_key),
+    baseline=False,
+    client=openai_client,
 )
 
 if "ws_thread" not in st.session_state or st.session_state.ws_thread is None or not st.session_state.ws_thread.is_alive():
@@ -215,15 +240,40 @@ if "ws_thread" not in st.session_state or st.session_state.ws_thread is None or 
     ws_thread.start()
     st.session_state.ws_thread = ws_thread
 
-component_js = (
-    Path(__file__).parent / "streamlit" / "components" / "live_memory.js"
-).read_text(encoding="utf-8")
+st.markdown(
+    """
+**Workflow**
+
+1. Grant microphone access (one tap). The recording is discarded – we only need the permission prompt.
+2. Watch the live console render energy + spectrogram while the browser streams 250 ms chunks to Streamlit.
+3. Streamlit forwards each chunk to the websocket service, which transcribes, hashes, and stores it via `/salience`.
+4. Stored keys appear immediately; click any badge to fetch `/exact/{key}` and play back the stored text.
+5. Export the session as JSON – the SHA-256 checksum matches the values persisted inside Qp.
+    """
+)
+
+st.subheader("Step 1 – Grant microphone access")
+warmup = st.audio_input(
+    "Click once to allow microphone access (the sample is discarded).",
+    key="warmup",
+)
+if warmup:
+    st.success("Microphone access granted. The live console below can now stream audio.")
+else:
+    st.info(
+        "If the live console stays on 'Waiting for microphone…', click the recorder above to trigger the browser permission dialog."
+    )
+
+st.subheader("Step 2 – Live console")
+component_js = (Path(__file__).parent / "streamlit" / "components" / "live_memory.js").read_text(
+    encoding="utf-8"
+)
 component_config = {
     "wsPort": WS_PORT,
     "wsRoute": WS_ROUTE,
     "exactBase": "/exact",
     "vadThreshold": float(vad_threshold),
-    "baseline": baseline_mode,
+    "baseline": False,
 }
 
 styles = """
@@ -248,18 +298,18 @@ styles = """
 """
 
 html = f"""
-<div class="live-memory">
-  <div class="status">
-    <span id="badge">Waiting for microphone…</span>
-    <span id="vad">Energy: 0.0</span>
+<div class=\"live-memory\">
+  <div class=\"status\">
+    <span id=\"badge\">Waiting for microphone…</span>
+    <span id=\"vad\">Energy: 0.0</span>
   </div>
-  <canvas id="spectrogram" width="720" height="160"></canvas>
-  <div class="controls">
-    <button id="export-json">Export session JSON</button>
-    <span id="export-hash"></span>
+  <canvas id=\"spectrogram\" width=\"720\" height=\"160\"></canvas>
+  <div class=\"controls\">
+    <button id=\"export-json\">Export session JSON</button>
+    <span id=\"export-hash\"></span>
   </div>
-  <ul id="keys"></ul>
-  <div id="log"></div>
+  <ul id=\"keys\"></ul>
+  <div id=\"log\"></div>
 </div>
 <script>window.liveMemoryConfig = {json.dumps(component_config)};</script>
 {styles}
@@ -270,12 +320,10 @@ components.html(html, height=640)
 
 st.markdown(
     """
-**Workflow**
+**Step 3 – Stream & store**: Speak naturally; the console streams chunks, hashes each fragment, and writes through `/salience`.
 
-1. Grant microphone access and speak in full sentences.
-2. The browser applies energy-based VAD, streams 250 ms chunks to Streamlit, and renders a live spectrogram.
-3. Streamlit transcribes each salient fragment, hashes it to a deterministic 16-byte key, and stores it via `/salience`.
-4. Keys appear instantly; click any badge to round-trip `/exact/{key}` and play back the bit-exact text.
-5. Export the session as JSON – the SHA-256 checksum matches the values persisted inside Qp.
+**Step 4 – Inspect memories**: Stored keys appear as badges. Click any badge to fetch `/exact/{key}` and hear the bit-exact payload.
+
+**Step 5 – Export session**: Use “Export session JSON” to download all captured fragments – the SHA-256 digest shown matches the persisted Qp payloads.
     """
 )
