@@ -1,18 +1,15 @@
 import os
 import time
-import datetime
-import base64
-import json
 
 import requests
 import streamlit as st
 from openai import OpenAI
 from io import BytesIO
+from s1_s2_memory import MemoryLoop
 
 # ---------- config ----------
 FASTAPI_ROOT_DEFAULT = os.getenv("FASTAPI_ROOT", "http://localhost:8000")
 FASTAPI_ROOT = FASTAPI_ROOT_DEFAULT  # will be overwritten by sidebar input
-QP_CF = "Qp"
 # ----------------------------
 
 st.set_page_config(page_title="Dual-Substrate Audio Memory", layout="centered")
@@ -29,18 +26,13 @@ def qp_put(key: bytes, value: str):
     r = requests.post(url, json=payload, headers=headers)
     r.raise_for_status()
 
-def qp_get(key: bytes) -> str:
+def qp_get(key: bytes) -> str | None:
     url = f"{FASTAPI_ROOT}/qp/{key.hex()}"
     headers = API_HEADERS or {}
     r = requests.get(url, headers=headers)
     if r.status_code == 404:
         return None
     return r.json()["value"]
-
-def deterministic_key(text: str) -> bytes:
-    import hashlib, re
-    norm = re.sub(r'\W+', '', text.lower().strip())
-    return hashlib.blake2b(norm.encode(), digest_size=16).digest()
 
 # ---------- sidebar ----------
 with st.sidebar:
@@ -71,10 +63,7 @@ with st.sidebar:
     if not api_key:
         st.stop()
     openai_client = OpenAI(api_key=api_key)
-    minutes = st.selectbox("Conversation length", [1,2,3,5,8,13,21,34,55])
-    quarter = minutes * 15 # seconds
-    inject_points = [quarter, 2*quarter, 3*quarter] # 1st 5 s of each quarter
-    st.write("Facts will be injected at:", [f"{t//60}:{t%60:02}" for t in inject_points])
+    salience_threshold = st.slider("Salience threshold (S₁)", 0.3, 0.95, 0.7, 0.05)
 
 # ---------- state ----------
 if "messages" not in st.session_state:
@@ -83,6 +72,10 @@ if "facts" not in st.session_state:
     st.session_state.facts = []
 if "start_time" not in st.session_state:
     st.session_state.start_time = None
+if "memory_loop" not in st.session_state:
+    st.session_state.memory_loop = MemoryLoop()
+
+st.session_state.memory_loop.threshold = salience_threshold
 
 # ---------- UI ----------
 for msg in st.session_state.messages:
@@ -117,21 +110,6 @@ def transcribe(audio_bytes: bytes) -> str:
     return transcript.text
 
 def reply(user_text: str) -> str:
-    # 1. store user utterance in Qp (deterministic key)
-    k = deterministic_key(user_text)
-    qp_put(k, user_text)
-
-    # 2. check if we need to inject a fact
-    elapsed = time.time() - st.session_state.start_time
-    for t in inject_points:
-        if t <= elapsed <= t+5:
-            # fetch a *previous* memory (here we just demo with user text)
-            fact = qp_get(k)
-            if fact:
-                add_fact(fact)
-                user_text = f"{user_text}\n[Memory: {fact}]"
-
-    # 3. LLM call
     st.session_state.messages.append({"role": "user", "content": user_text})
     client = require_openai()
     response = client.chat.completions.create(
@@ -144,25 +122,50 @@ def reply(user_text: str) -> str:
     st.session_state.messages.append({"role": "assistant", "content": bot_text})
     return bot_text
 
+memory_loop = st.session_state.memory_loop
+
 if audio_input:
     raw_audio = audio_input.getvalue()
     text = transcribe(raw_audio)
     st.write("Transcribed:", text)
-    bot = reply(text)
+
+    now = time.time()
+
+    try:
+        outcome = memory_loop.process(
+            text,
+            store_fn=qp_put,
+            fetch_fn=qp_get,
+            now=now,
+        )
+    except requests.RequestException as exc:
+        st.warning(f"Memory pipeline error: {exc}")
+        outcome = None
+
+    user_text = text
+    if outcome:
+        if outcome.stored and outcome.score is not None:
+            st.caption(f"Salience score {outcome.score:.2f} → stored in Qp")
+        if outcome.fact:
+            add_fact(outcome.fact)
+            user_text = f"{user_text}\n[Memory: {outcome.fact}]"
+
+    bot = reply(user_text)
     with st.chat_message("assistant"):
         st.write(bot)
 
-# ---------- auto stop ----------
-if st.session_state.start_time:
-    if time.time() - st.session_state.start_time > minutes*60:
-        st.warning("Time limit reached – session ended.")
-        st.session_state.start_time = None
-        with st.expander("Retrieved facts"):
-            for f in st.session_state.facts:
-                st.write("- ", f)
-
+# ---------- controls ----------
 if st.button("Stop talking"):
     st.session_state.start_time = None
+    try:
+        fact = memory_loop.force_consolidate(qp_get)
+    except requests.RequestException as exc:
+        st.warning(f"Memory consolidation error: {exc}")
+        fact = None
+    if fact:
+        add_fact(fact)
+
+if st.session_state.facts:
     with st.expander("Retrieved facts"):
         for f in st.session_state.facts:
             st.write("- ", f)
