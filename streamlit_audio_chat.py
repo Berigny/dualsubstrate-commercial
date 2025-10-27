@@ -25,6 +25,7 @@ import uvicorn
 
 WS_PORT = int(os.getenv("STREAMLIT_WS_PORT", "8765"))
 WS_ROUTE = "/ws"
+PCM_ROUTE = "/pcm"
 
 STATE_LOCK = threading.Lock()
 WS_STATE: Dict[str, Any] = {
@@ -154,6 +155,21 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         await websocket.close()
 
 
+@app.websocket(PCM_ROUTE)
+async def pcm_endpoint(websocket: WebSocket) -> None:
+    """Relay raw PCM frames back to the browser for visualisation."""
+    await websocket.accept()
+    try:
+        while True:
+            try:
+                data = await websocket.receive_bytes()
+            except WebSocketDisconnect:
+                break
+            await websocket.send_bytes(data)
+    finally:  # pragma: no cover - best-effort close
+        await websocket.close()
+
+
 @app.get("/exact/{key_hex}")
 def proxy_exact(key_hex: str) -> JSONResponse:
     state = _get_state()
@@ -178,6 +194,59 @@ def proxy_exact(key_hex: str) -> JSONResponse:
 
 def _run_ws_server() -> None:
     asyncio.set_event_loop(asyncio.new_event_loop())
+
+    def _pcm_sender() -> None:
+        """Optional helper that forwards local PCM frames to the visualiser."""
+        try:
+            import pyaudio  # type: ignore
+            import websocket  # type: ignore
+        except ImportError:
+            return
+
+        PCM_WS = f"ws://localhost:{WS_PORT}{PCM_ROUTE}"
+        CHUNK = 1024
+        FORMAT = pyaudio.paInt16
+        CHANNELS = 1
+        RATE = 16000
+
+        try:
+            ws = websocket.create_connection(PCM_WS, timeout=5)
+        except Exception:
+            return
+
+        pa = pyaudio.PyAudio()
+        try:
+            stream = pa.open(
+                format=FORMAT,
+                channels=CHANNELS,
+                rate=RATE,
+                input=True,
+                frames_per_buffer=CHUNK,
+            )
+        except Exception:
+            ws.close()
+            pa.terminate()
+            return
+
+        try:
+            while True:
+                pcm = stream.read(CHUNK, exception_on_overflow=False)
+                try:
+                    ws.send(pcm, opcode=websocket.ABNF.OPCODE_BINARY)
+                except Exception:
+                    break
+        finally:
+            try:
+                stream.stop_stream()
+                stream.close()
+            finally:
+                pa.terminate()
+            try:
+                ws.close()
+            except Exception:
+                pass
+
+    threading.Timer(1.0, _pcm_sender).start()
     uvicorn.run(app, host="0.0.0.0", port=WS_PORT, log_level="error")
 
 
@@ -265,12 +334,18 @@ else:
     )
 
 st.subheader("Step 2 – Live console")
-component_js = (Path(__file__).parent / "streamlit" / "components" / "live_memory.js").read_text(
+component_js = (
+    Path(__file__).parent
+    / "streamlit"
+    / "components"
+    / "live_memory_v2.js"
+).read_text(
     encoding="utf-8"
 )
 component_config = {
     "wsPort": WS_PORT,
     "wsRoute": WS_ROUTE,
+    "pcmRoute": PCM_ROUTE,
     "exactBase": "/exact",
     "vadThreshold": float(vad_threshold),
     "baseline": False,
@@ -313,6 +388,7 @@ html = f"""
 </div>
 <script>window.liveMemoryConfig = {json.dumps(component_config)};</script>
 {styles}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsSHA/3.3.1/sha.min.js"></script>
 <script>{component_js}</script>
 """
 
