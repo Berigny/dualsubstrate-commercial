@@ -7,12 +7,18 @@ import os
 import struct
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Optional, Tuple
+from typing import Iterable, List, Optional, Tuple, Any, Callable
 
 try:  # pragma: no cover - import guard
-    from rocksdict import AccessType, MergeOperands, MergeOperator, Options, Rdict
+    import rocksdict as _rocksdict  # type: ignore[import]
 except ImportError:  # pragma: no cover - optional dependency
-    AccessType = MergeOperands = MergeOperator = Options = Rdict = None  # type: ignore[assignment]
+    _rocksdict = None  # type: ignore[assignment]
+
+AccessType = getattr(_rocksdict, "AccessType", None)
+Options = getattr(_rocksdict, "Options", None)
+Rdict = getattr(_rocksdict, "Rdict", None)
+MergeOperator = getattr(_rocksdict, "MergeOperator", None)
+WriteBatch = getattr(_rocksdict, "WriteBatch", None)
 
 
 ColumnFamily = str
@@ -93,14 +99,25 @@ class RocksLedgerStorage:
         """Atomically persist a ledger entry to all column families."""
 
         keys = LedgerKeys(entity=entity, timestamp=timestamp)
-        wb = self._db.write_batch()
-        wb.put(("R", keys.r()), r_payload)
-        wb.put(("Qp", keys.qp()), qp_payload)
-        wb.put(("bridge", keys.bridge()), bridge_payload)
-        wb.put(("index", keys.index_prefix(p_prefix)), b"")
-        wb.put(("index", keys.index_hash(r_hash)), b"")
-        wb.merge(("ethics", keys.ethics()), ethics_delta)
-        self._db.write(wb)
+        if hasattr(self._db, "write_batch"):
+            wb = self._db.write_batch()
+            wb.put(("R", keys.r()), r_payload)
+            wb.put(("Qp", keys.qp()), qp_payload)
+            wb.put(("bridge", keys.bridge()), bridge_payload)
+            wb.put(("index", keys.index_prefix(p_prefix)), b"")
+            wb.put(("index", keys.index_hash(r_hash)), b"")
+            if hasattr(wb, "merge"):
+                wb.merge(("ethics", keys.ethics()), ethics_delta)
+            self._db.write(wb)
+            return
+
+        # Fallback path when write batches are unavailable
+        self._db.put(keys.r(), r_payload)
+        self._db.put(keys.qp(), qp_payload)
+        self._db.put(keys.bridge(), bridge_payload)
+        self._db.put(keys.index_prefix(p_prefix), b"")
+        self._db.put(keys.index_hash(r_hash), b"")
+        self._db.put(keys.ethics(), ethics_delta)
 
 
 def to_big_endian_timestamp(timestamp: int) -> bytes:
@@ -140,7 +157,7 @@ def compose_index_key(
     )
 
 
-def _merge_ethics(existing_value: Optional[bytes], operands: "MergeOperands") -> bytes:
+def _merge_ethics(existing_value: Optional[bytes], operands: Iterable[bytes]) -> bytes:
     """Merge operator that keeps cumulative credits/debits and the max timestamp."""
 
     state = _decode_ethics(existing_value)
@@ -167,7 +184,7 @@ def _encode_ethics(value: dict) -> bytes:
 def open_rocksdb(
     path: os.PathLike[str] | str,
     *,
-    column_families: Iterable[ColumnFamily] = DEFAULT_COLUMN_FAMILIES,
+    column_families: Iterable[ColumnFamily] | None = None,
     create_if_missing: bool = True,
     prefix_extractor: Optional[str] = None,
 ) -> RocksLedgerStorage:
@@ -179,28 +196,29 @@ def open_rocksdb(
             "Install it with `pip install rocksdict`."
         )
 
-    options = Options()
-    options.create_if_missing(create_if_missing)
-    if prefix_extractor:
-        options.set_prefix_extractor(prefix_extractor)
-
-    cf_list: List[str] = list(dict.fromkeys(column_families))
     db_path = Path(path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    db = Rdict(
-        str(db_path),
-        options=options,
-        access_type=AccessType.TransactionDB,
-        column_families=cf_list,
-    )
-    db.set_merge_operator("ethics", MergeOperator(merge_fn=_merge_ethics))
+
+    options = Options() if Options is not None else None
+    if options is not None and hasattr(options, "create_if_missing"):
+        options.create_if_missing(create_if_missing)
+    if options is not None and prefix_extractor and hasattr(options, "set_prefix_extractor"):
+        options.set_prefix_extractor(prefix_extractor)
+
+    kwargs: dict[str, Any] = {}
+    if options is not None:
+        kwargs["options"] = options
+
+    db = Rdict(str(db_path), **kwargs)
+    if MergeOperator is not None and hasattr(db, "set_merge_operator"):
+        db.set_merge_operator("ethics", MergeOperator(merge_fn=_merge_ethics))
     return RocksLedgerStorage(db)
 
 
 def open_db(
     path: os.PathLike[str] | str = "./data/ledger",
     *,
-    column_families: Iterable[ColumnFamily] = DEFAULT_COLUMN_FAMILIES,
+    column_families: Iterable[ColumnFamily] | None = None,
     create_if_missing: bool = True,
     prefix_extractor: Optional[str] = None,
 ):
@@ -226,4 +244,3 @@ __all__ = [
     "rocksdb_available",
     "to_big_endian_timestamp",
 ]
-

@@ -9,17 +9,17 @@ from typing import Dict, Iterable, List, Tuple
 
 from checksum import merkle_root
 from .flow_rule_bridge import validate_prime_sequence
+from core.storage import open_db as open_rocksdb, rocksdb_available
 
-try:  # pragma: no cover - optional dependency
-    import rocksdb  # type: ignore
-except ImportError:  # pragma: no cover - fallback to in-memory shim
-    rocksdb = None
-
-EVENT_LOG = os.getenv("EVENT_LOG_PATH", "/data/event.log")
-FACTORS_DB = "/data/factors"
-POSTINGS_DB = "/data/postings"
+DATA_ROOT = Path(os.getenv("LEDGER_DATA_PATH", "./data"))
+EVENT_LOG = os.getenv("EVENT_LOG_PATH", str(DATA_ROOT / "event.log"))
+FACTORS_DB = os.getenv("FACTORS_DB_PATH", str(DATA_ROOT / "factors"))
+POSTINGS_DB = os.getenv("POSTINGS_DB_PATH", str(DATA_ROOT / "postings"))
 PRIME_ARRAY: Tuple[int, ...] = (2, 3, 5, 7, 11, 13, 17, 19)
-QP_CF_NAME = b"Qp"
+QP_PREFIX = b"qp:"
+
+
+HAS_ROCKS = rocksdb_available()
 
 
 class _InMemoryIterator:
@@ -44,19 +44,6 @@ class _InMemoryIterator:
         return key, self._data[key]
 
 
-class _InMemoryWriteBatch:
-    def __init__(self, target: "_InMemoryDB") -> None:
-        self._target = target
-        self._puts: List[Tuple[bytes, bytes]] = []
-
-    def put(self, key: bytes, value: bytes) -> None:
-        self._puts.append((key, value))
-
-    def apply(self) -> None:
-        for key, value in self._puts:
-            self._target.put(key, value)
-
-
 class _InMemoryDB:
     def __init__(self) -> None:
         self._data: Dict[bytes, bytes] = {}
@@ -70,61 +57,50 @@ class _InMemoryDB:
     def iteritems(self) -> _InMemoryIterator:
         return _InMemoryIterator(self._data)
 
-
-def _open_db(path, cf_names):
-    if rocksdb is None:
-        return _InMemoryDB()
-    opts = rocksdb.Options(create_if_missing=True)
-    try:
-        current_cfs = rocksdb.list_column_families(path, opts)
-    except rocksdb.errors.NotFound:
-        current_cfs = ["default"]
-    all_cfs = set(current_cfs)
-    for name in cf_names:
-        all_cfs.add(name)
-    return rocksdb.DB(
-        path,
-        opts,
-        column_families={name: rocksdb.ColumnFamilyOptions() for name in all_cfs},
-    )
+    def items(self):
+        return self._data.items()
 
 
-def _new_write_batch(db):
-    if rocksdb is None:
-        return _InMemoryWriteBatch(db)
-    return rocksdb.WriteBatch()
+def _open_db(path: str):
+    if HAS_ROCKS:
+        db_path = Path(path)
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        return open_rocksdb(db_path)
+    return _InMemoryDB()
 
 
-def _write_batch(db, batch) -> None:
-    if rocksdb is None:
-        batch.apply()
+def _iter_prefix(db, prefix: bytes):
+    if HAS_ROCKS:
+        for key, value in db.items():
+            key_bytes = key.encode() if isinstance(key, str) else key
+            if key_bytes.startswith(prefix):
+                yield key_bytes, value
     else:
-        db.write(batch)
+        it = db.iteritems()
+        it.seek(prefix)
+        for k, v in it:
+            if not k.startswith(prefix):
+                break
+            yield k, v
+
 
 class Ledger:
     def __init__(self):
-        self.fdb = _open_db(FACTORS_DB, ["default", QP_CF_NAME])
-        self.pdb = _open_db(POSTINGS_DB, ["default"])
+        self.fdb = _open_db(FACTORS_DB)
+        self.pdb = _open_db(POSTINGS_DB)
         self.log = self._open_event_log()
-        if rocksdb:
-            try:
-                self.qp_cf = self.fdb.get_column_family(QP_CF_NAME)
-            except KeyError:
-                self.qp_cf = self.fdb.create_column_family(QP_CF_NAME)
+
+    @staticmethod
+    def _qp_key(key: bytes) -> bytes:
+        return QP_PREFIX + key
 
     def qp_put(self, key: bytes, value: str) -> None:
-        """Store a value in the Qp column family."""
-        if rocksdb:
-            self.fdb.put((self.qp_cf, key), value.encode())
-        else:
-            self.fdb.put(key, value.encode())
+        """Store a value in the Qp namespace."""
+        self.fdb.put(self._qp_key(key), value.encode())
 
     def qp_get(self, key: bytes) -> str | None:
-        """Retrieve a value from the Qp column family."""
-        if rocksdb:
-            val = self.fdb.get((self.qp_cf, key))
-        else:
-            val = self.fdb.get(key)
+        """Retrieve a value from the Qp namespace."""
+        val = self.fdb.get(self._qp_key(key))
         return val.decode() if val else None
 
     @staticmethod
@@ -140,8 +116,6 @@ class Ledger:
 
     def anchor(self, entity: str, factors: List[Tuple[int,int]]):
         ts = int(time.time()*1000)
-        batch_f = _new_write_batch(self.fdb)
-        batch_p = _new_write_batch(self.pdb)
         check = validate_prime_sequence([p for p, _ in factors]) if factors else None
         via_flags = check.via_centroid if check else []
         for idx, (p, dk) in enumerate(factors):
@@ -152,15 +126,17 @@ class Ledger:
             # 2) update entity→factors
             old = self._get_factor(entity, p)
             new = old + dk
-            batch_f.put(f"{entity}:{p}".encode(), str(new).encode())
+            self.fdb.put(f"{entity}:{p}".encode(), str(new).encode())
             # 3) update prime→postings
-            batch_p.put(f"{p}:{entity}".encode(), str(new).encode())
-        _write_batch(self.fdb, batch_f)
-        _write_batch(self.pdb, batch_p)
+            self.pdb.put(f"{p}:{entity}".encode(), str(new).encode())
 
     def _get_factor(self, entity: str, p: int) -> int:
         v = self.fdb.get(f"{entity}:{p}".encode())
-        return int(v.decode()) if v else 0
+        if v is None:
+            return 0
+        if isinstance(v, bytes):
+            return int(v.decode())
+        return int(v)
 
     def factors(self, entity: str) -> List[Tuple[int, int]]:
         """Return the eight-prime exponent vector for ``entity``."""
@@ -182,14 +158,12 @@ class Ledger:
         from functools import reduce
         sets = []
         for p in primes:
-            it = self.pdb.iteritems()
-            it.seek(f"{p}:".encode())
             ents = []
-            for k, v in it:
-                if not k.decode().startswith(f"{p}:"):
-                    break
+            prefix = f"{p}:".encode()
+            for k, v in _iter_prefix(self.pdb, prefix):
                 ent = k.decode().split(":")[1]
-                ents.append((ent, int(v.decode())))
+                value = v.decode() if isinstance(v, bytes) else str(v)
+                ents.append((ent, int(value)))
             sets.append(dict(ents))
         # intersect
         common = reduce(lambda a,b: a.keys() & b.keys(), sets)
@@ -200,13 +174,11 @@ class Ledger:
         return out
 
     def checksum(self, entity: str) -> str:
-        it = self.fdb.iteritems()
-        it.seek(f"{entity}:".encode())
+        prefix = f"{entity}:".encode()
         leaves = []
-        for k, v in it:
-            if not k.decode().startswith(f"{entity}:"):
-                break
-            leaves.append(k+v)
+        for k, v in _iter_prefix(self.fdb, prefix):
+            value = v if isinstance(v, bytes) else str(v).encode()
+            leaves.append(k + value)
         return merkle_root(leaves)
 
 

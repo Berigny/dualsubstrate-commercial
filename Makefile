@@ -5,15 +5,18 @@ PIP := $(VENV_BIN)/pip
 PYTHON_BIN := $(VENV_BIN)/python
 PYTEST := $(VENV_BIN)/pytest
 UVICORN := $(VENV_BIN)/uvicorn
+STREAMLIT := $(VENV_BIN)/streamlit
 
 APP_MODULE ?= api.main:app
 PYTEST_ARGS ?=
+STREAMLIT_APP ?= streamlit_audio_chat.py
+CLEAN_SCRIPT := ops/clean_workspace.py
 
 PROTO_DIR := proto
 GEN_PY := api/gen
 OPENAPI_OUT := openapi
 
-.PHONY: help venv setup run test grpc.gen grpc.openapi grpc.run
+.PHONY: help venv setup run test streamlit streamlit-stop streamlit-deps grpc.gen grpc.openapi grpc.run clean
 
 help:
 	@echo "Common targets:"
@@ -21,6 +24,9 @@ help:
 	@echo "  make run      # start FastAPI app with uvicorn --reload"
 	@echo "  make test     # run pytest suite"
 	@echo "  make grpc.gen # regenerate Python gRPC stubs"
+	@echo "  make streamlit # launch Streamlit audio chat demo"
+	@echo "  make streamlit-stop # terminate running Streamlit demo"
+	@echo "  make clean    # remove virtualenv + Python caches"
 
 venv: $(VENV_BIN)/python
 
@@ -37,6 +43,10 @@ $(VENV)/.grpc-installed: api/requirements.grpc.txt $(VENV)/.installed
 	$(PIP) install -r api/requirements.grpc.txt
 	touch $@
 
+$(VENV)/.streamlit-installed: requirements.streamlit.txt $(VENV)/.installed
+	$(PIP) install -r requirements.streamlit.txt
+	touch $@
+
 setup: $(VENV)/.installed
 
 run: setup
@@ -44,6 +54,18 @@ run: setup
 
 test: setup
 	$(PYTEST) $(PYTEST_ARGS)
+
+streamlit-deps: $(VENV)/.streamlit-installed
+
+streamlit: $(VENV)/.streamlit-installed
+	$(STREAMLIT) run $(STREAMLIT_APP)
+
+streamlit-stop:
+	- pkill -f "streamlit run $(STREAMLIT_APP)"
+
+clean:
+	rm -rf $(VENV) $(OPENAPI_OUT)
+	$(PYTHON) $(CLEAN_SCRIPT)
 
 grpc.gen: setup $(VENV)/.grpc-installed
 	$(PYTHON_BIN) -m grpc_tools.protoc \
