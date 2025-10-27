@@ -2,194 +2,50 @@
 
 import asyncio
 import json
+import logging
 import os
 import threading
-import time
-from io import BytesIO
 from pathlib import Path
-from typing import Any, Dict
+from urllib.parse import urlparse
 
-import requests
 import streamlit as st
 import streamlit.components.v1 as components
-from fastapi import FastAPI, HTTPException, WebSocket
-from fastapi.responses import JSONResponse
-from fastapi.websockets import WebSocketDisconnect
-from openai import OpenAI
 import uvicorn
+
+from backend import PCM_ROUTE, WS_ROUTE, app as backend_app, configure as configure_backend
 
 
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
 
+logger = logging.getLogger(__name__)
+
 WS_PORT = int(os.getenv("STREAMLIT_WS_PORT", "8765"))
-WS_ROUTE = "/ws"
-PCM_ROUTE = "/pcm"
 
-STATE_LOCK = threading.Lock()
-WS_STATE: Dict[str, Any] = {
-    "backend": None,
-    "headers": {},
-    "threshold": 0.7,
-    "baseline": False,
-    "client": None,
-}
-
-
-def _set_state(**updates: Any) -> None:
-    with STATE_LOCK:
-        WS_STATE.update(updates)
-
-
-def _get_state() -> Dict[str, Any]:
-    with STATE_LOCK:
-        return dict(WS_STATE)
+try:  # pragma: no cover - optional local dependencies
+    import pyaudio  # type: ignore
+    import websocket  # type: ignore
+except ImportError:  # pragma: no cover - optional local dependencies
+    pyaudio = None  # type: ignore[assignment]
+    websocket = None  # type: ignore[assignment]
 
 
 def _clean_secret(value: str) -> str:
     return "".join(ch for ch in value if not ch.isspace())
 
 
-# ---------------------------------------------------------------------------
-# Live console backend (WebSocket + /exact proxy)
-# ---------------------------------------------------------------------------
-
-def _transcribe_chunk(data: bytes) -> str:
-    state = _get_state()
-    client: OpenAI | None = state.get("client")
-    if client is None:
-        raise RuntimeError("OpenAI client not configured")
-    audio = BytesIO(data)
-    audio.name = "chunk.webm"
-    transcript = client.audio.transcriptions.create(model="whisper-1", file=audio)
-    return (transcript.text or "").strip()
-
-
-def _call_salience(
-    backend: str,
-    headers: Dict[str, str],
-    text: str,
-    threshold: float,
-    timestamp: float,
-) -> Dict[str, Any]:
-    payload = {"utterance": text, "timestamp": timestamp, "threshold": threshold}
-    try:
-        response = requests.post(
-            f"{backend}/salience", json=payload, headers=headers, timeout=15
-        )
-        response.raise_for_status()
-        data = response.json()
-    except requests.RequestException as exc:
-        return {
-            "stored": False,
-            "text": text,
-            "error": str(exc),
-            "score": None,
-            "timestamp": timestamp,
-        }
-    except ValueError as exc:
-        return {
-            "stored": False,
-            "text": text,
-            "error": f"Invalid JSON from backend: {exc}",
-            "score": None,
-            "timestamp": timestamp,
-        }
-
-    data.setdefault("timestamp", timestamp)
-    data.setdefault("text", text)
-    return data
-
-
-app = FastAPI()
-
-
-@app.websocket(WS_ROUTE)
-async def websocket_endpoint(websocket: WebSocket) -> None:
-    await websocket.accept()
-    loop = asyncio.get_running_loop()
-    try:
-        while True:
-            try:
-                payload = await websocket.receive_bytes()
-            except WebSocketDisconnect:
-                break
-
-            try:
-                text = await loop.run_in_executor(None, _transcribe_chunk, payload)
-            except Exception as exc:  # pragma: no cover - defensive logging
-                await websocket.send_text(json.dumps({"stored": False, "error": str(exc)}))
-                continue
-
-            if not text:
-                continue
-
-            state = _get_state()
-            backend = state.get("backend")
-            headers = state.get("headers", {})
-            threshold = float(state.get("threshold", 0.7))
-            baseline = bool(state.get("baseline", False))
-            timestamp = time.time()
-
-            if baseline or not backend:
-                await websocket.send_text(
-                    json.dumps(
-                        {
-                            "stored": False,
-                            "text": text,
-                            "score": None,
-                            "timestamp": timestamp,
-                            "baseline": baseline,
-                            "reason": "baseline" if baseline else "backend-unset",
-                        }
-                    )
-                )
-                continue
-
-            result = await loop.run_in_executor(
-                None, _call_salience, backend, headers, text, threshold, timestamp
-            )
-            await websocket.send_text(json.dumps(result))
-    finally:  # pragma: no cover - best-effort close
-        await websocket.close()
-
-
-@app.websocket(PCM_ROUTE)
-async def pcm_endpoint(websocket: WebSocket) -> None:
-    """Relay raw PCM frames back to the browser for visualisation."""
-    await websocket.accept()
-    try:
-        while True:
-            try:
-                data = await websocket.receive_bytes()
-            except WebSocketDisconnect:
-                break
-            await websocket.send_bytes(data)
-    finally:  # pragma: no cover - best-effort close
-        await websocket.close()
-
-
-@app.get("/exact/{key_hex}")
-def proxy_exact(key_hex: str) -> JSONResponse:
-    state = _get_state()
-    backend = state.get("backend")
-    headers = state.get("headers", {})
-    if not backend:
-        raise HTTPException(status_code=503, detail="Backend not configured")
-    try:
-        response = requests.get(f"{backend}/exact/{key_hex}", headers=headers, timeout=10)
-    except requests.RequestException as exc:  # pragma: no cover - network failure
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-
-    if response.status_code >= 400:
-        raise HTTPException(status_code=response.status_code, detail=response.text)
-
-    try:
-        data = response.json()
-    except ValueError as exc:  # pragma: no cover - backend bug guard
-        raise HTTPException(status_code=502, detail=f"Invalid JSON from backend: {exc}") from exc
-    return JSONResponse(data)
+def _ws_host_from_backend(base: str) -> str | None:
+    parsed = urlparse(base if "://" in base else f"http://{base}")
+    hostname = parsed.hostname
+    if not hostname:
+        return None
+    if hostname in {"localhost", "127.0.0.1"}:
+        port = parsed.port or WS_PORT
+        return f"{hostname}:{port}"
+    if parsed.port:
+        return f"{hostname}:{parsed.port}"
+    return hostname
 
 
 def _run_ws_server() -> None:
@@ -197,10 +53,7 @@ def _run_ws_server() -> None:
 
     def _pcm_sender() -> None:
         """Optional helper that forwards local PCM frames to the visualiser."""
-        try:
-            import pyaudio  # type: ignore
-            import websocket  # type: ignore
-        except ImportError:
+        if pyaudio is None or websocket is None:
             return
 
         PCM_WS = f"ws://localhost:{WS_PORT}{PCM_ROUTE}"
@@ -246,8 +99,12 @@ def _run_ws_server() -> None:
             except Exception:
                 pass
 
-    threading.Timer(1.0, _pcm_sender).start()
-    uvicorn.run(app, host="0.0.0.0", port=WS_PORT, log_level="error")
+    if pyaudio:
+        threading.Timer(1.0, _pcm_sender).start()
+    else:
+        logger.info("pyaudio unavailable – PCM visualisation disabled")
+
+    uvicorn.run(backend_app, host="0.0.0.0", port=WS_PORT, log_level="error")
 
 
 # ---------------------------------------------------------------------------
@@ -282,6 +139,8 @@ with st.sidebar:
     vad_threshold = st.slider("VAD energy threshold", 5.0, 40.0, 12.0, 0.5)
 
 backend_base = backend_input.rstrip("/") or default_backend
+if not backend_base.startswith(("http://", "https://")):
+    backend_base = f"http://{backend_base}"
 dualsubstrate_key = _clean_secret(dualsubstrate_key_input)
 openai_key = _clean_secret(openai_key_input)
 
@@ -293,21 +152,26 @@ if not openai_key:
     st.warning("Enter an OpenAI API key to continue.")
     st.stop()
 
-API_HEADERS = {"Authorization": f"Bearer {dualsubstrate_key}"}
-openai_client = OpenAI(api_key=openai_key)
-
-_set_state(
+configure_backend(
     backend=backend_base,
-    headers=API_HEADERS,
+    api_key=dualsubstrate_key,
+    openai_key=openai_key,
     threshold=float(salience_threshold),
     baseline=False,
-    client=openai_client,
 )
 
-if "ws_thread" not in st.session_state or st.session_state.ws_thread is None or not st.session_state.ws_thread.is_alive():
-    ws_thread = threading.Thread(target=_run_ws_server, daemon=True)
-    ws_thread.start()
-    st.session_state.ws_thread = ws_thread
+parsed_backend = urlparse(backend_base if "://" in backend_base else f"http://{backend_base}")
+should_run_local_backend = (
+    (parsed_backend.hostname in {"localhost", "127.0.0.1"})
+    and ((parsed_backend.port or WS_PORT) == WS_PORT)
+)
+
+if should_run_local_backend:
+    ws_thread = st.session_state.get("ws_thread")
+    if ws_thread is None or not ws_thread.is_alive():
+        ws_thread = threading.Thread(target=_run_ws_server, daemon=True)
+        ws_thread.start()
+        st.session_state.ws_thread = ws_thread
 
 st.markdown(
     """
@@ -342,11 +206,13 @@ component_js = (
 ).read_text(
     encoding="utf-8"
 )
+ws_host = _ws_host_from_backend(backend_base)
 component_config = {
+    "wsHost": ws_host,
     "wsPort": WS_PORT,
     "wsRoute": WS_ROUTE,
     "pcmRoute": PCM_ROUTE,
-    "exactBase": "/exact",
+    "exactBase": f"{backend_base}/exact",
     "vadThreshold": float(vad_threshold),
     "baseline": False,
 }
