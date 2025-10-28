@@ -1,0 +1,8 @@
+[server]
+headless = true
+
+[runner]
+magicEnabled = false
+
+[dep]
+requirementsFile = "requirements-app.txt"
