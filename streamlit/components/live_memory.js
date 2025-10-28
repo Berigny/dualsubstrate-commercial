@@ -1,11 +1,30 @@
-(function () {
-  'use strict';
+(() => {
+const CFG = window.liveMemoryConfig;
+const protocol = location.protocol === "https:" ? "wss://" : "ws://";
+const host = CFG.wsHost || location.host;
 
-  const config = window.liveMemoryConfig || {};
-  const wsPort = config.wsPort || null;
-  const wsHostOverride = config.wsHost && config.wsHost.length ? config.wsHost : null;
-  const wsRoute = config.wsRoute || '/ws';
-  const pcmRoute = config.pcmRoute || null;
+const API_WS = new WebSocket(protocol + host + CFG.wsRoute);
+const PCM_WS = new WebSocket(protocol + host + CFG.pcmRoute);
+
+API_WS.onopen = () => console.log("API socket open");
+PCM_WS.onopen = () => console.log("PCM socket open");
+
+// ---------- capture mic ----------
+navigator.mediaDevices.getUserMedia({audio:true})
+.then(stream => {
+const ctx = new AudioContext({sampleRate:16000});
+const source = ctx.createMediaStreamSource(stream);
+const proc = ctx.createScriptProcessor(1024,1,1); // 64 ms @ 16 kHz
+proc.onaudioprocess = e => {
+const pcm16 = new Int16Array(e.inputBuffer.length);
+const data = e.inputBuffer.getChannelData(0);
+for(let i=0;i<data.length;i++) pcm16[i] = Math.max(-32768, Math.min(32767, data[i]*32767));
+PCM_WS.send(pcm16.buffer);
+};
+source.connect(proc);
+proc.connect(ctx.destination); // required by some browsers
+})
+.catch(err => console.error("Mic error", err));
   const exactBase = config.exactBase || '/exact';
   const badgeEl = document.getElementById('badge');
   const listEl = document.getElementById('keys');

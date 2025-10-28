@@ -1,7 +1,7 @@
 """
 DualSubstrate API – ledger + Metatron-star flow-rule enforcement
 """
-from fastapi import FastAPI, HTTPException, Depends, Query, Request
+from fastapi import FastAPI, HTTPException, Depends, Query, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, conint
 from typing import List, Tuple, Literal, Callable
 import json
@@ -342,3 +342,14 @@ def exact_memory(key: str, request: Request, _: str = Depends(require_key)):
         return json.loads(value)
     except json.JSONDecodeError:
         return {"text": value}
+
+
+@app.websocket("/pcm")
+async def pcm_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            data = await websocket.receive_bytes()
+            await websocket.send_bytes(data) # echo for spectrogram
+    except WebSocketDisconnect:
+        pass
