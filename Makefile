@@ -34,18 +34,14 @@ venv: $(VENV_BIN)/python
 $(VENV_BIN)/python:
 	$(PYTHON) -m venv $(VENV)
 
-$(VENV)/.installed: requirements-app.txt $(VENV_BIN)/python
+$(VENV)/.installed: requirements.txt $(VENV_BIN)/python
 	$(PIP) install --upgrade pip
-	$(PIP) install -r requirements-app.txt
+	$(PIP) install -r requirements.txt
 	$(PIP) install pytest
 	touch $@
 
 $(VENV)/.grpc-installed: api/requirements.grpc.txt $(VENV)/.installed
 	$(PIP) install -r api/requirements.grpc.txt
-	touch $@
-
-$(VENV)/.streamlit-installed: requirements.streamlit.txt $(VENV)/.installed
-	$(PIP) install -r requirements.streamlit.txt
 	touch $@
 
 setup: $(VENV)/.installed
@@ -56,9 +52,9 @@ run: setup
 test: setup
 	$(PYTEST) $(PYTEST_ARGS)
 
-streamlit-deps: $(VENV)/.streamlit-installed
+streamlit-deps: setup
 
-streamlit: $(VENV)/.streamlit-installed
+streamlit: setup
 	$(STREAMLIT) run $(STREAMLIT_APP)
 
 streamlit-stop:

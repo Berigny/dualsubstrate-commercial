@@ -1,6 +1,0 @@
-streamlit>=1.32
-
-# OpenAI client needed for audio transcription and responses
-openai>=1.12
-
-requests>=2.31

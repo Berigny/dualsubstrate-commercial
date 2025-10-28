@@ -23,7 +23,7 @@ try:  # Delay failure until runtime to provide clearer guidance
 except ModuleNotFoundError as exc:  # pragma: no cover - depends on environment setup
     raise ModuleNotFoundError(
         "The 'openai' package is required. Install dependencies via "
-        "'pip install -r requirements.streamlit.txt' or ensure 'openai' is "
+        "'pip install -r requirements.txt' or ensure 'openai' is "
         "available in the environment."
     ) from exc
 
