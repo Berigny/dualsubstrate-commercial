@@ -34,9 +34,9 @@ venv: $(VENV_BIN)/python
 $(VENV_BIN)/python:
 	$(PYTHON) -m venv $(VENV)
 
-$(VENV)/.installed: requirements.txt $(VENV_BIN)/python
+$(VENV)/.installed: requirements-app.txt $(VENV_BIN)/python
 	$(PIP) install --upgrade pip
-	$(PIP) install -r requirements.txt
+	$(PIP) install -r requirements-app.txt
 	$(PIP) install pytest
 	touch $@
 
