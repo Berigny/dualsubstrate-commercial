@@ -3,8 +3,6 @@ httpx==0.27.0
 rocksdict>=0.3.20,<0.4.0
 slowapi==0.1.9
 uvicorn[standard]==0.29.0
-
-# Required for the Streamlit audio chat client
 openai>=1.35
-websocket-client>=1.8.0 # optional local
-pyaudio>=0.2.14 # optional local
+websocket-client>=1.8.0
+pyaudio>=0.2.14
