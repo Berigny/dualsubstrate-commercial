@@ -16,8 +16,16 @@ import streamlit.components.v1 as components
 from fastapi import FastAPI, HTTPException, WebSocket
 from fastapi.responses import JSONResponse
 from fastapi.websockets import WebSocketDisconnect
-from openai import OpenAI
 import uvicorn
+
+try:  # Delay failure until runtime to provide clearer guidance
+    from openai import OpenAI
+except ModuleNotFoundError as exc:  # pragma: no cover - depends on environment setup
+    raise ModuleNotFoundError(
+        "The 'openai' package is required. Install dependencies via "
+        "'pip install -r requirements.streamlit.txt' or ensure 'openai' is "
+        "available in the environment."
+    ) from exc
 
 
 # ---------------------------------------------------------------------------
