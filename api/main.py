@@ -257,6 +257,13 @@ def traverse(
 
 
 # ---------- health ----------
+@app.get("/health", include_in_schema=False)
+def health() -> dict[str, str]:
+    """Report a simple ready status for HTTP health checks."""
+
+    return {"status": "ok"}
+
+
 @app.get("/centroid")
 def centroid_now():
     return {"centroid": _centroid_now()}
