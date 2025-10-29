@@ -1,10 +1,8 @@
 (() => {
-const ws = new WebSocket("wss://{{WS_HOST}}/ws");
+const host = window.WS_HOST || window.location.host;
+const ws = new WebSocket(`wss://${host}/ws`);
 const badgeEl = document.getElementById("badge");
 const vadEl   = document.getElementById("vad");
-const keysEl  = document.getElementById("keys");
-const apiKey  = "{{API_KEY}}";
-
 ws.onopen = () => {
   badgeEl.innerText = "Connected – speak now";
   navigator.mediaDevices.getUserMedia({audio:true})
@@ -20,28 +18,16 @@ ws.onopen = () => {
         const energy = Math.sqrt(pcm16.reduce((s,v)=>s+v*v,0)/pcm16.length)/32768;
         vadEl.innerText = `Energy: ${energy.toFixed(2)}`;
     };
-    src.connect(proc);
-    proc.connect(ctx.destination);
-  })
-  .catch(() => { badgeEl.innerText = "Microphone permission denied"; });
+    src.connect(proc); proc.connect(ctx.destination);
+  });
 };
-
 ws.onmessage = ev => {
   const msg = JSON.parse(ev.data);
   if(msg.stored){
     badgeEl.innerText = `Stored 0x${msg.key.slice(0,8)}…`;
     const li = document.createElement("li");
-    const button = document.createElement("button");
-    button.textContent = msg.text || msg.key;
-    button.onclick = () => {
-      fetch(`https://{{WS_HOST}}/exact/${msg.key}`, {
-        headers: {Authorization: `Bearer ${apiKey}`}
-      })
-      .then(r => r.json())
-      .then(d => alert(d.text || "(no text)"));
-    };
-    li.appendChild(button);
-    keysEl.prepend(li);
-  }
+    li.innerHTML = `<button onclick="fetch('/exact/${msg.key}').then(r=>r.json()).then(d=>alert(d.text))">${msg.text}</button>`;
+    document.getElementById("keys").prepend(li);
+  };
 };
 })();
