@@ -9,6 +9,7 @@ wsproto>=1.2.0
 openai>=1.35
 websocket-client>=1.8.0
 pyaudio>=0.2.14
+prometheus-client>=0.20
 
 # Streamlit demo
 streamlit>=1.32
