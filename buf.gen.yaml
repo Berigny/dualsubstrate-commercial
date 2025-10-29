@@ -16,3 +16,7 @@ plugins:
     opt:
       - allow_merge=true
       - merge_file_name=dualsubstrate
+  - plugin: buf.build/protocolbuffers/python
+    out: api/gen
+  - plugin: buf.build/grpc/python
+    out: api/gen
