@@ -51,16 +51,14 @@ if st.button("▶️ Start streaming", key="start_stream"):
 
 if st.session_state.get("started"):
     component_js = (
-        (Path(__file__).parent / "streamlit" / "components" / "live_minimal.js")
-        .read_text(encoding="utf-8")
-        .replace("{{WS_HOST}}", ws_host)
-        .replace("{{API_KEY}}", dualsubstrate_key)
-    )
+        Path(__file__).parent / "streamlit" / "components" / "live_minimal.js"
+    ).read_text(encoding="utf-8")
     html = f"""
     <div>
       <span id=\"badge\">Waiting for mic…</span> | <span id=\"vad\">Energy: 0.0</span>
       <ul id=\"keys\"></ul>
     </div>
+    <script>window.WS_HOST = "{ws_host}";</script>
     <script>{component_js}</script>
     """
     st.components.v1.html(html, height=300)
