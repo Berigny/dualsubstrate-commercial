@@ -213,7 +213,11 @@ async def serve() -> None:
         server.add_insecure_port(address)
         logging.info("gRPC listening without TLS on %s", address)
 
-    metrics_task = asyncio.create_task(metrics_server())
+    http_host = os.getenv("HTTP_HOST") or os.getenv("METRICS_HOST")
+    http_port_raw = os.getenv("HTTP_PORT") or os.getenv("METRICS_PORT")
+    http_port = int(http_port_raw) if http_port_raw else None
+
+    metrics_task = asyncio.create_task(metrics_server(http_host, http_port))
 
     await server.start()
 
