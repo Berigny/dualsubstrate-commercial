@@ -69,8 +69,10 @@ clean-data:
 	mkdir -p data
 
 grpc.gen: setup $(VENV)/.grpc-installed
+	buf mod update
 	$(PYTHON_BIN) -m grpc_tools.protoc \
 	  -I$(PROTO_DIR) \
+	  -I$(VENV)/include \
 	  --python_out=$(GEN_PY) \
 	  --grpc_python_out=$(GEN_PY) \
 	  $(PROTO_DIR)/dualsubstrate/v1/ledger.proto \

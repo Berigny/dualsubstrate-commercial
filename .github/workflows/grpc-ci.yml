@@ -24,6 +24,7 @@ jobs:
       - name: Install deps
         run: |
           pip install -r api/requirements.grpc.txt
+      - uses: bufbuild/buf-setup-action@v1
       - name: Generate stubs
         run: make grpc.gen
       - name: Login to GHCR
