@@ -1,0 +1,4 @@
+[secrets]
+FASTAPI_ROOT = "https://dualsubstrate-commercial.fly.dev"
+DUALSUBSTRATE_API_KEY = "demo-key"
+OPENAI_API_KEY = "sk-xxxxxxxx"
