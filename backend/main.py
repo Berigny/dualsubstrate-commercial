@@ -163,6 +163,13 @@ app.add_middleware(
 )
 
 
+@app.get("/health", include_in_schema=False)
+def health() -> Dict[str, str]:
+    """Return a simple status payload for health checks."""
+
+    return {"status": "ok"}
+
+
 @app.websocket(WS_ROUTE)
 async def websocket_endpoint(websocket: WebSocket) -> None:
     await websocket.accept()
