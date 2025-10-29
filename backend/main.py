@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.websockets import WebSocketDisconnect
 from openai import OpenAI
+from prometheus_client import make_asgi_app
 
 
 LOGGER = logging.getLogger(__name__)
@@ -161,6 +162,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+metrics_app = make_asgi_app()
+app.mount("/metrics", metrics_app)
 
 
 @app.get("/health", include_in_schema=False)
