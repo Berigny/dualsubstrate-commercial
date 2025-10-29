@@ -5,6 +5,7 @@ import asyncio
 import logging
 import os
 from typing import Optional
+from email.message import Message
 
 from aiohttp import web
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
@@ -12,7 +13,17 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 async def _handle_metrics(_: web.Request) -> web.Response:
     payload = generate_latest()
-    return web.Response(body=payload, content_type=CONTENT_TYPE_LATEST)
+
+    # aiohttp's web.Response doesn't like the charset in the content_type,
+    # so we have to parse it out.
+    msg = Message()
+    msg['content-type'] = CONTENT_TYPE_LATEST
+
+    return web.Response(
+        body=payload,
+        content_type=msg.get_content_type(),
+        charset=msg.get_content_charset(),
+    )
 
 
 async def _handle_health(_: web.Request) -> web.Response:
