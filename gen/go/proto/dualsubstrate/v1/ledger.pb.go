@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.10
 // 	protoc        (unknown)
-// source: proto/dualsubstrate/v1/ledger.proto
+// source: dualsubstrate/v1/ledger.proto
 
 package v1
 
@@ -36,7 +36,7 @@ type QuaternionRequest struct {
 
 func (x *QuaternionRequest) Reset() {
 	*x = QuaternionRequest{}
-	mi := &file_proto_dualsubstrate_v1_ledger_proto_msgTypes[0]
+	mi := &file_dualsubstrate_v1_ledger_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -48,7 +48,7 @@ func (x *QuaternionRequest) String() string {
 func (*QuaternionRequest) ProtoMessage() {}
 
 func (x *QuaternionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_dualsubstrate_v1_ledger_proto_msgTypes[0]
+	mi := &file_dualsubstrate_v1_ledger_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61,7 +61,7 @@ func (x *QuaternionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QuaternionRequest.ProtoReflect.Descriptor instead.
 func (*QuaternionRequest) Descriptor() ([]byte, []int) {
-	return file_proto_dualsubstrate_v1_ledger_proto_rawDescGZIP(), []int{0}
+	return file_dualsubstrate_v1_ledger_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *QuaternionRequest) GetQ() []float32 {
@@ -88,7 +88,7 @@ type QuaternionResponse struct {
 
 func (x *QuaternionResponse) Reset() {
 	*x = QuaternionResponse{}
-	mi := &file_proto_dualsubstrate_v1_ledger_proto_msgTypes[1]
+	mi := &file_dualsubstrate_v1_ledger_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -100,7 +100,7 @@ func (x *QuaternionResponse) String() string {
 func (*QuaternionResponse) ProtoMessage() {}
 
 func (x *QuaternionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_dualsubstrate_v1_ledger_proto_msgTypes[1]
+	mi := &file_dualsubstrate_v1_ledger_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -113,7 +113,7 @@ func (x *QuaternionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QuaternionResponse.ProtoReflect.Descriptor instead.
 func (*QuaternionResponse) Descriptor() ([]byte, []int) {
-	return file_proto_dualsubstrate_v1_ledger_proto_rawDescGZIP(), []int{1}
+	return file_dualsubstrate_v1_ledger_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *QuaternionResponse) GetVec() []float32 {
@@ -136,7 +136,7 @@ type LedgerEntry struct {
 
 func (x *LedgerEntry) Reset() {
 	*x = LedgerEntry{}
-	mi := &file_proto_dualsubstrate_v1_ledger_proto_msgTypes[2]
+	mi := &file_dualsubstrate_v1_ledger_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -148,7 +148,7 @@ func (x *LedgerEntry) String() string {
 func (*LedgerEntry) ProtoMessage() {}
 
 func (x *LedgerEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_dualsubstrate_v1_ledger_proto_msgTypes[2]
+	mi := &file_dualsubstrate_v1_ledger_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -161,7 +161,7 @@ func (x *LedgerEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LedgerEntry.ProtoReflect.Descriptor instead.
 func (*LedgerEntry) Descriptor() ([]byte, []int) {
-	return file_proto_dualsubstrate_v1_ledger_proto_rawDescGZIP(), []int{2}
+	return file_dualsubstrate_v1_ledger_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *LedgerEntry) GetEntity() string {
@@ -210,7 +210,7 @@ type AppendRequest struct {
 
 func (x *AppendRequest) Reset() {
 	*x = AppendRequest{}
-	mi := &file_proto_dualsubstrate_v1_ledger_proto_msgTypes[3]
+	mi := &file_dualsubstrate_v1_ledger_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -222,7 +222,7 @@ func (x *AppendRequest) String() string {
 func (*AppendRequest) ProtoMessage() {}
 
 func (x *AppendRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_dualsubstrate_v1_ledger_proto_msgTypes[3]
+	mi := &file_dualsubstrate_v1_ledger_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -235,7 +235,7 @@ func (x *AppendRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AppendRequest.ProtoReflect.Descriptor instead.
 func (*AppendRequest) Descriptor() ([]byte, []int) {
-	return file_proto_dualsubstrate_v1_ledger_proto_rawDescGZIP(), []int{3}
+	return file_dualsubstrate_v1_ledger_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *AppendRequest) GetEntry() *LedgerEntry {
@@ -262,7 +262,7 @@ type AppendResponse struct {
 
 func (x *AppendResponse) Reset() {
 	*x = AppendResponse{}
-	mi := &file_proto_dualsubstrate_v1_ledger_proto_msgTypes[4]
+	mi := &file_dualsubstrate_v1_ledger_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -274,7 +274,7 @@ func (x *AppendResponse) String() string {
 func (*AppendResponse) ProtoMessage() {}
 
 func (x *AppendResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_dualsubstrate_v1_ledger_proto_msgTypes[4]
+	mi := &file_dualsubstrate_v1_ledger_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -287,7 +287,7 @@ func (x *AppendResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AppendResponse.ProtoReflect.Descriptor instead.
 func (*AppendResponse) Descriptor() ([]byte, []int) {
-	return file_proto_dualsubstrate_v1_ledger_proto_rawDescGZIP(), []int{4}
+	return file_dualsubstrate_v1_ledger_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *AppendResponse) GetTs() uint64 {
@@ -315,7 +315,7 @@ type ScanRequest struct {
 
 func (x *ScanRequest) Reset() {
 	*x = ScanRequest{}
-	mi := &file_proto_dualsubstrate_v1_ledger_proto_msgTypes[5]
+	mi := &file_dualsubstrate_v1_ledger_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -327,7 +327,7 @@ func (x *ScanRequest) String() string {
 func (*ScanRequest) ProtoMessage() {}
 
 func (x *ScanRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_dualsubstrate_v1_ledger_proto_msgTypes[5]
+	mi := &file_dualsubstrate_v1_ledger_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -340,7 +340,7 @@ func (x *ScanRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScanRequest.ProtoReflect.Descriptor instead.
 func (*ScanRequest) Descriptor() ([]byte, []int) {
-	return file_proto_dualsubstrate_v1_ledger_proto_rawDescGZIP(), []int{5}
+	return file_dualsubstrate_v1_ledger_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ScanRequest) GetPPrefix() []byte {
@@ -376,7 +376,7 @@ type LedgerRow struct {
 
 func (x *LedgerRow) Reset() {
 	*x = LedgerRow{}
-	mi := &file_proto_dualsubstrate_v1_ledger_proto_msgTypes[6]
+	mi := &file_dualsubstrate_v1_ledger_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -388,7 +388,7 @@ func (x *LedgerRow) String() string {
 func (*LedgerRow) ProtoMessage() {}
 
 func (x *LedgerRow) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_dualsubstrate_v1_ledger_proto_msgTypes[6]
+	mi := &file_dualsubstrate_v1_ledger_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -401,7 +401,7 @@ func (x *LedgerRow) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LedgerRow.ProtoReflect.Descriptor instead.
 func (*LedgerRow) Descriptor() ([]byte, []int) {
-	return file_proto_dualsubstrate_v1_ledger_proto_rawDescGZIP(), []int{6}
+	return file_dualsubstrate_v1_ledger_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *LedgerRow) GetEntity() string {
@@ -441,7 +441,7 @@ type ScanResponse struct {
 
 func (x *ScanResponse) Reset() {
 	*x = ScanResponse{}
-	mi := &file_proto_dualsubstrate_v1_ledger_proto_msgTypes[7]
+	mi := &file_dualsubstrate_v1_ledger_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -453,7 +453,7 @@ func (x *ScanResponse) String() string {
 func (*ScanResponse) ProtoMessage() {}
 
 func (x *ScanResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_dualsubstrate_v1_ledger_proto_msgTypes[7]
+	mi := &file_dualsubstrate_v1_ledger_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -466,7 +466,7 @@ func (x *ScanResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScanResponse.ProtoReflect.Descriptor instead.
 func (*ScanResponse) Descriptor() ([]byte, []int) {
-	return file_proto_dualsubstrate_v1_ledger_proto_rawDescGZIP(), []int{7}
+	return file_dualsubstrate_v1_ledger_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ScanResponse) GetRows() []*LedgerRow {
@@ -476,11 +476,11 @@ func (x *ScanResponse) GetRows() []*LedgerRow {
 	return nil
 }
 
-var File_proto_dualsubstrate_v1_ledger_proto protoreflect.FileDescriptor
+var File_dualsubstrate_v1_ledger_proto protoreflect.FileDescriptor
 
-const file_proto_dualsubstrate_v1_ledger_proto_rawDesc = "" +
+const file_dualsubstrate_v1_ledger_proto_rawDesc = "" +
 	"\n" +
-	"#proto/dualsubstrate/v1/ledger.proto\x12\x10dualsubstrate.v1\x1a\x1cgoogle/api/annotations.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\"3\n" +
+	"\x1ddualsubstrate/v1/ledger.proto\x12\x10dualsubstrate.v1\x1a\x1cgoogle/api/annotations.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\"3\n" +
 	"\x11QuaternionRequest\x12\f\n" +
 	"\x01q\x18\x01 \x03(\x02R\x01q\x12\x10\n" +
 	"\x03vec\x18\x02 \x03(\x02R\x03vec\"&\n" +
@@ -522,19 +522,19 @@ const file_proto_dualsubstrate_v1_ledger_proto_rawDesc = "" +
 	"\x11DualSubstrate API\x12\x1ep-adic quaternion memory layer2\x031.0*\x01\x022\x10application/json:\x10application/jsonZLgithub.com/berigny/dualsubstrate-commercial/gen/go/proto/dualsubstrate/v1;v1b\x06proto3"
 
 var (
-	file_proto_dualsubstrate_v1_ledger_proto_rawDescOnce sync.Once
-	file_proto_dualsubstrate_v1_ledger_proto_rawDescData []byte
+	file_dualsubstrate_v1_ledger_proto_rawDescOnce sync.Once
+	file_dualsubstrate_v1_ledger_proto_rawDescData []byte
 )
 
-func file_proto_dualsubstrate_v1_ledger_proto_rawDescGZIP() []byte {
-	file_proto_dualsubstrate_v1_ledger_proto_rawDescOnce.Do(func() {
-		file_proto_dualsubstrate_v1_ledger_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_proto_dualsubstrate_v1_ledger_proto_rawDesc), len(file_proto_dualsubstrate_v1_ledger_proto_rawDesc)))
+func file_dualsubstrate_v1_ledger_proto_rawDescGZIP() []byte {
+	file_dualsubstrate_v1_ledger_proto_rawDescOnce.Do(func() {
+		file_dualsubstrate_v1_ledger_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_dualsubstrate_v1_ledger_proto_rawDesc), len(file_dualsubstrate_v1_ledger_proto_rawDesc)))
 	})
-	return file_proto_dualsubstrate_v1_ledger_proto_rawDescData
+	return file_dualsubstrate_v1_ledger_proto_rawDescData
 }
 
-var file_proto_dualsubstrate_v1_ledger_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
-var file_proto_dualsubstrate_v1_ledger_proto_goTypes = []any{
+var file_dualsubstrate_v1_ledger_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_dualsubstrate_v1_ledger_proto_goTypes = []any{
 	(*QuaternionRequest)(nil),  // 0: dualsubstrate.v1.QuaternionRequest
 	(*QuaternionResponse)(nil), // 1: dualsubstrate.v1.QuaternionResponse
 	(*LedgerEntry)(nil),        // 2: dualsubstrate.v1.LedgerEntry
@@ -545,7 +545,7 @@ var file_proto_dualsubstrate_v1_ledger_proto_goTypes = []any{
 	(*ScanResponse)(nil),       // 7: dualsubstrate.v1.ScanResponse
 	nil,                        // 8: dualsubstrate.v1.LedgerEntry.MetaEntry
 }
-var file_proto_dualsubstrate_v1_ledger_proto_depIdxs = []int32{
+var file_dualsubstrate_v1_ledger_proto_depIdxs = []int32{
 	8, // 0: dualsubstrate.v1.LedgerEntry.meta:type_name -> dualsubstrate.v1.LedgerEntry.MetaEntry
 	2, // 1: dualsubstrate.v1.AppendRequest.entry:type_name -> dualsubstrate.v1.LedgerEntry
 	6, // 2: dualsubstrate.v1.ScanResponse.rows:type_name -> dualsubstrate.v1.LedgerRow
@@ -562,26 +562,26 @@ var file_proto_dualsubstrate_v1_ledger_proto_depIdxs = []int32{
 	0, // [0:3] is the sub-list for field type_name
 }
 
-func init() { file_proto_dualsubstrate_v1_ledger_proto_init() }
-func file_proto_dualsubstrate_v1_ledger_proto_init() {
-	if File_proto_dualsubstrate_v1_ledger_proto != nil {
+func init() { file_dualsubstrate_v1_ledger_proto_init() }
+func file_dualsubstrate_v1_ledger_proto_init() {
+	if File_dualsubstrate_v1_ledger_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_dualsubstrate_v1_ledger_proto_rawDesc), len(file_proto_dualsubstrate_v1_ledger_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dualsubstrate_v1_ledger_proto_rawDesc), len(file_dualsubstrate_v1_ledger_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_proto_dualsubstrate_v1_ledger_proto_goTypes,
-		DependencyIndexes: file_proto_dualsubstrate_v1_ledger_proto_depIdxs,
-		MessageInfos:      file_proto_dualsubstrate_v1_ledger_proto_msgTypes,
+		GoTypes:           file_dualsubstrate_v1_ledger_proto_goTypes,
+		DependencyIndexes: file_dualsubstrate_v1_ledger_proto_depIdxs,
+		MessageInfos:      file_dualsubstrate_v1_ledger_proto_msgTypes,
 	}.Build()
-	File_proto_dualsubstrate_v1_ledger_proto = out.File
-	file_proto_dualsubstrate_v1_ledger_proto_goTypes = nil
-	file_proto_dualsubstrate_v1_ledger_proto_depIdxs = nil
+	File_dualsubstrate_v1_ledger_proto = out.File
+	file_dualsubstrate_v1_ledger_proto_goTypes = nil
+	file_dualsubstrate_v1_ledger_proto_depIdxs = nil
 }

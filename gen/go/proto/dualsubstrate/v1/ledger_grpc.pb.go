@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             (unknown)
-// source: proto/dualsubstrate/v1/ledger.proto
+// source: dualsubstrate/v1/ledger.proto
 
 package v1
 
@@ -197,5 +197,5 @@ var DualSubstrate_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "proto/dualsubstrate/v1/ledger.proto",
+	Metadata: "dualsubstrate/v1/ledger.proto",
 }

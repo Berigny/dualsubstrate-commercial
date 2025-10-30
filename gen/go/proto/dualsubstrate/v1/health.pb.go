@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.10
 // 	protoc        (unknown)
-// source: proto/dualsubstrate/v1/health.proto
+// source: dualsubstrate/v1/health.proto
 
 package v1
 
@@ -54,11 +54,11 @@ func (x HealthResponse_Status) String() string {
 }
 
 func (HealthResponse_Status) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_dualsubstrate_v1_health_proto_enumTypes[0].Descriptor()
+	return file_dualsubstrate_v1_health_proto_enumTypes[0].Descriptor()
 }
 
 func (HealthResponse_Status) Type() protoreflect.EnumType {
-	return &file_proto_dualsubstrate_v1_health_proto_enumTypes[0]
+	return &file_dualsubstrate_v1_health_proto_enumTypes[0]
 }
 
 func (x HealthResponse_Status) Number() protoreflect.EnumNumber {
@@ -67,7 +67,7 @@ func (x HealthResponse_Status) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use HealthResponse_Status.Descriptor instead.
 func (HealthResponse_Status) EnumDescriptor() ([]byte, []int) {
-	return file_proto_dualsubstrate_v1_health_proto_rawDescGZIP(), []int{1, 0}
+	return file_dualsubstrate_v1_health_proto_rawDescGZIP(), []int{1, 0}
 }
 
 type HealthRequest struct {
@@ -78,7 +78,7 @@ type HealthRequest struct {
 
 func (x *HealthRequest) Reset() {
 	*x = HealthRequest{}
-	mi := &file_proto_dualsubstrate_v1_health_proto_msgTypes[0]
+	mi := &file_dualsubstrate_v1_health_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -90,7 +90,7 @@ func (x *HealthRequest) String() string {
 func (*HealthRequest) ProtoMessage() {}
 
 func (x *HealthRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_dualsubstrate_v1_health_proto_msgTypes[0]
+	mi := &file_dualsubstrate_v1_health_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -103,7 +103,7 @@ func (x *HealthRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthRequest.ProtoReflect.Descriptor instead.
 func (*HealthRequest) Descriptor() ([]byte, []int) {
-	return file_proto_dualsubstrate_v1_health_proto_rawDescGZIP(), []int{0}
+	return file_dualsubstrate_v1_health_proto_rawDescGZIP(), []int{0}
 }
 
 type HealthResponse struct {
@@ -115,7 +115,7 @@ type HealthResponse struct {
 
 func (x *HealthResponse) Reset() {
 	*x = HealthResponse{}
-	mi := &file_proto_dualsubstrate_v1_health_proto_msgTypes[1]
+	mi := &file_dualsubstrate_v1_health_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -127,7 +127,7 @@ func (x *HealthResponse) String() string {
 func (*HealthResponse) ProtoMessage() {}
 
 func (x *HealthResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_dualsubstrate_v1_health_proto_msgTypes[1]
+	mi := &file_dualsubstrate_v1_health_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -140,7 +140,7 @@ func (x *HealthResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthResponse.ProtoReflect.Descriptor instead.
 func (*HealthResponse) Descriptor() ([]byte, []int) {
-	return file_proto_dualsubstrate_v1_health_proto_rawDescGZIP(), []int{1}
+	return file_dualsubstrate_v1_health_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *HealthResponse) GetStatus() HealthResponse_Status {
@@ -150,11 +150,11 @@ func (x *HealthResponse) GetStatus() HealthResponse_Status {
 	return HealthResponse_UNKNOWN
 }
 
-var File_proto_dualsubstrate_v1_health_proto protoreflect.FileDescriptor
+var File_dualsubstrate_v1_health_proto protoreflect.FileDescriptor
 
-const file_proto_dualsubstrate_v1_health_proto_rawDesc = "" +
+const file_dualsubstrate_v1_health_proto_rawDesc = "" +
 	"\n" +
-	"#proto/dualsubstrate/v1/health.proto\x12\x10dualsubstrate.v1\"\x0f\n" +
+	"\x1ddualsubstrate/v1/health.proto\x12\x10dualsubstrate.v1\"\x0f\n" +
 	"\rHealthRequest\"\x86\x01\n" +
 	"\x0eHealthResponse\x12?\n" +
 	"\x06status\x18\x01 \x01(\x0e2'.dualsubstrate.v1.HealthResponse.StatusR\x06status\"3\n" +
@@ -166,25 +166,25 @@ const file_proto_dualsubstrate_v1_health_proto_rawDesc = "" +
 	"\x05Check\x12\x1f.dualsubstrate.v1.HealthRequest\x1a .dualsubstrate.v1.HealthResponseBNZLgithub.com/berigny/dualsubstrate-commercial/gen/go/proto/dualsubstrate/v1;v1b\x06proto3"
 
 var (
-	file_proto_dualsubstrate_v1_health_proto_rawDescOnce sync.Once
-	file_proto_dualsubstrate_v1_health_proto_rawDescData []byte
+	file_dualsubstrate_v1_health_proto_rawDescOnce sync.Once
+	file_dualsubstrate_v1_health_proto_rawDescData []byte
 )
 
-func file_proto_dualsubstrate_v1_health_proto_rawDescGZIP() []byte {
-	file_proto_dualsubstrate_v1_health_proto_rawDescOnce.Do(func() {
-		file_proto_dualsubstrate_v1_health_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_proto_dualsubstrate_v1_health_proto_rawDesc), len(file_proto_dualsubstrate_v1_health_proto_rawDesc)))
+func file_dualsubstrate_v1_health_proto_rawDescGZIP() []byte {
+	file_dualsubstrate_v1_health_proto_rawDescOnce.Do(func() {
+		file_dualsubstrate_v1_health_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_dualsubstrate_v1_health_proto_rawDesc), len(file_dualsubstrate_v1_health_proto_rawDesc)))
 	})
-	return file_proto_dualsubstrate_v1_health_proto_rawDescData
+	return file_dualsubstrate_v1_health_proto_rawDescData
 }
 
-var file_proto_dualsubstrate_v1_health_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_proto_dualsubstrate_v1_health_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
-var file_proto_dualsubstrate_v1_health_proto_goTypes = []any{
+var file_dualsubstrate_v1_health_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_dualsubstrate_v1_health_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_dualsubstrate_v1_health_proto_goTypes = []any{
 	(HealthResponse_Status)(0), // 0: dualsubstrate.v1.HealthResponse.Status
 	(*HealthRequest)(nil),      // 1: dualsubstrate.v1.HealthRequest
 	(*HealthResponse)(nil),     // 2: dualsubstrate.v1.HealthResponse
 }
-var file_proto_dualsubstrate_v1_health_proto_depIdxs = []int32{
+var file_dualsubstrate_v1_health_proto_depIdxs = []int32{
 	0, // 0: dualsubstrate.v1.HealthResponse.status:type_name -> dualsubstrate.v1.HealthResponse.Status
 	1, // 1: dualsubstrate.v1.Health.Check:input_type -> dualsubstrate.v1.HealthRequest
 	2, // 2: dualsubstrate.v1.Health.Check:output_type -> dualsubstrate.v1.HealthResponse
@@ -195,27 +195,27 @@ var file_proto_dualsubstrate_v1_health_proto_depIdxs = []int32{
 	0, // [0:1] is the sub-list for field type_name
 }
 
-func init() { file_proto_dualsubstrate_v1_health_proto_init() }
-func file_proto_dualsubstrate_v1_health_proto_init() {
-	if File_proto_dualsubstrate_v1_health_proto != nil {
+func init() { file_dualsubstrate_v1_health_proto_init() }
+func file_dualsubstrate_v1_health_proto_init() {
+	if File_dualsubstrate_v1_health_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_dualsubstrate_v1_health_proto_rawDesc), len(file_proto_dualsubstrate_v1_health_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dualsubstrate_v1_health_proto_rawDesc), len(file_dualsubstrate_v1_health_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_proto_dualsubstrate_v1_health_proto_goTypes,
-		DependencyIndexes: file_proto_dualsubstrate_v1_health_proto_depIdxs,
-		EnumInfos:         file_proto_dualsubstrate_v1_health_proto_enumTypes,
-		MessageInfos:      file_proto_dualsubstrate_v1_health_proto_msgTypes,
+		GoTypes:           file_dualsubstrate_v1_health_proto_goTypes,
+		DependencyIndexes: file_dualsubstrate_v1_health_proto_depIdxs,
+		EnumInfos:         file_dualsubstrate_v1_health_proto_enumTypes,
+		MessageInfos:      file_dualsubstrate_v1_health_proto_msgTypes,
 	}.Build()
-	File_proto_dualsubstrate_v1_health_proto = out.File
-	file_proto_dualsubstrate_v1_health_proto_goTypes = nil
-	file_proto_dualsubstrate_v1_health_proto_depIdxs = nil
+	File_dualsubstrate_v1_health_proto = out.File
+	file_dualsubstrate_v1_health_proto_goTypes = nil
+	file_dualsubstrate_v1_health_proto_depIdxs = nil
 }
