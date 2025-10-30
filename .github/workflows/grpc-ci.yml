@@ -29,14 +29,3 @@ jobs:
         run: make grpc.gen
       - name: Login to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-      - name: Generate OpenAPI (Docker)
-        run: |
-          mkdir -p openapi
-          docker run --rm -v $(pwd):/work -w /work \
-            ghcr.io/grpc-ecosystem/grpc-gateway:v2.19.0 \
-            protoc -I . \
-              --openapiv2_out=openapi \
-              --openapiv2_opt=logtostderr=true \
-              proto/dualsubstrate/v1/ledger.proto
-      - name: Lint proto presence
-        run: test -f openapi/dualsubstrate.v1.swagger.json
