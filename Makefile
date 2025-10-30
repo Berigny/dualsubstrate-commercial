@@ -10,13 +10,14 @@ STREAMLIT := $(VENV_BIN)/streamlit
 APP_MODULE ?= api.main:app
 PYTEST_ARGS ?=
 STREAMLIT_APP ?= streamlit_audio_chat.py
+STREAMLIT_SIMPLE_APP ?= streamlit_simple_audio.py
 CLEAN_SCRIPT := ops/clean_workspace.py
 
 PROTO_DIR := proto
 GEN_PY := api/gen
 OPENAPI_OUT := openapi
 
-.PHONY: help venv setup run test streamlit streamlit-stop streamlit-deps grpc.gen grpc.openapi grpc.run clean clean-data
+.PHONY: help venv setup run test streamlit streamlit-stop streamlit-simple streamlit-simple-stop streamlit-deps grpc.gen grpc.openapi grpc.run clean clean-data
 
 help:
 	@echo "Common targets:"
@@ -26,6 +27,8 @@ help:
 	@echo "  make grpc.gen # regenerate Python gRPC stubs"
 	@echo "  make streamlit # launch Streamlit audio chat demo"
 	@echo "  make streamlit-stop # terminate running Streamlit demo"
+	@echo "  make streamlit-simple # launch simplified audio demo"
+	@echo "  make streamlit-simple-stop # terminate simplified audio demo"
 	@echo "  make clean    # remove virtualenv + Python caches"
 	@echo "  make clean-data # wipe RocksDB data/event logs (stop uvicorn first!)"
 
@@ -59,6 +62,12 @@ streamlit: setup
 
 streamlit-stop:
 	- pkill -f "streamlit run $(STREAMLIT_APP)"
+
+streamlit-simple: setup
+	$(STREAMLIT) run $(STREAMLIT_SIMPLE_APP)
+
+streamlit-simple-stop:
+	- pkill -f "streamlit run $(STREAMLIT_SIMPLE_APP)"
 
 clean:
 	rm -rf $(VENV) $(OPENAPI_OUT)
