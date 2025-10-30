@@ -78,8 +78,18 @@ clean-data:
 	mkdir -p data
 
 grpc.gen: setup $(VENV)/.grpc-installed
-	(cd $(PROTO_DIR) && buf dep update)
-	buf generate --template buf.gen.yaml
+	PROTO_EXPORT_DIR=$$(mktemp -d); \
+	PY_INCLUDE_DIR=$$($(PYTHON_BIN) -c 'import grpc_tools, pathlib; print(pathlib.Path(grpc_tools.__file__).resolve().parent / "_proto")'); \
+	buf export . --path $(PROTO_DIR) --output $$PROTO_EXPORT_DIR; \
+	$(PYTHON_BIN) -m grpc_tools.protoc \
+	  -I$(PROTO_DIR) \
+	  -I$$PROTO_EXPORT_DIR \
+	  -I$$PY_INCLUDE_DIR \
+	  --python_out=$(GEN_PY) \
+	  --grpc_python_out=$(GEN_PY) \
+	  $(PROTO_DIR)/dualsubstrate/v1/ledger.proto \
+	  $(PROTO_DIR)/dualsubstrate/v1/health.proto; \
+	rm -rf $$PROTO_EXPORT_DIR
 
 grpc.run: $(VENV)/.grpc-installed
 	$(PYTHON_BIN) -m api.grpc_server
