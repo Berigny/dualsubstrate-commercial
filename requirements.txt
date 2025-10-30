@@ -10,5 +10,9 @@ openai>=1.35
 websocket-client>=1.8.0
 prometheus-client>=0.20
 
+# Core API dependencies
+grpcio-tools>=1.59
+googleapis-common-protos>=1.61
+
 # Streamlit demo
 streamlit>=1.32
