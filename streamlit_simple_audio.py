@@ -102,9 +102,13 @@ def add_fact(fact: str) -> None:
     st.info(f"Memory injected: {fact}")
 
 
-audio_bytes = st.audio_input("Press to talk", key="audio")
-if audio_bytes and st.session_state.start_time is None:
-    st.session_state.start_time = time.time()
+audio_file = st.audio_input("Press to talk", key="audio")
+audio_bytes: Optional[bytes] = None
+if audio_file:
+    if st.session_state.start_time is None:
+        st.session_state.start_time = time.time()
+    audio_bytes = audio_file.read()
+    st.audio(audio_bytes, format="audio/wav")
 
 
 def transcribe(buffer: bytes) -> str:
