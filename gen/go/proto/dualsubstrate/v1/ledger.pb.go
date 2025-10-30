@@ -7,7 +7,6 @@
 package v1
 
 import (
-	_ "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -480,7 +479,7 @@ var File_dualsubstrate_v1_ledger_proto protoreflect.FileDescriptor
 
 const file_dualsubstrate_v1_ledger_proto_rawDesc = "" +
 	"\n" +
-	"\x1ddualsubstrate/v1/ledger.proto\x12\x10dualsubstrate.v1\x1a\x1cgoogle/api/annotations.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\"3\n" +
+	"\x1ddualsubstrate/v1/ledger.proto\x12\x10dualsubstrate.v1\x1a\x1cgoogle/api/annotations.proto\"3\n" +
 	"\x11QuaternionRequest\x12\f\n" +
 	"\x01q\x18\x01 \x03(\x02R\x01q\x12\x10\n" +
 	"\x03vec\x18\x02 \x03(\x02R\x03vec\"&\n" +
@@ -518,8 +517,7 @@ const file_dualsubstrate_v1_ledger_proto_rawDesc = "" +
 	"\x06Append\x12\x1f.dualsubstrate.v1.AppendRequest\x1a .dualsubstrate.v1.AppendResponse\"\x15\x82\xd3\xe4\x93\x02\x0f:\x01*\"\n" +
 	"/v1/append\x12g\n" +
 	"\n" +
-	"ScanPrefix\x12\x1d.dualsubstrate.v1.ScanRequest\x1a\x1e.dualsubstrate.v1.ScanResponse\"\x1a\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/scan_prefixB\xb2\x01\x92Aa\x128\n" +
-	"\x11DualSubstrate API\x12\x1ep-adic quaternion memory layer2\x031.0*\x01\x022\x10application/json:\x10application/jsonZLgithub.com/berigny/dualsubstrate-commercial/gen/go/proto/dualsubstrate/v1;v1b\x06proto3"
+	"ScanPrefix\x12\x1d.dualsubstrate.v1.ScanRequest\x1a\x1e.dualsubstrate.v1.ScanResponse\"\x1a\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/scan_prefixBNZLgithub.com/berigny/dualsubstrate-commercial/gen/go/proto/dualsubstrate/v1;v1b\x06proto3"
 
 var (
 	file_dualsubstrate_v1_ledger_proto_rawDescOnce sync.Once

@@ -1,20 +1,16 @@
 {
   "swagger": "2.0",
   "info": {
-    "title": "DualSubstrate API",
-    "description": "p-adic quaternion memory layer",
-    "version": "1.0"
+    "title": "dualsubstrate/v1/health.proto",
+    "version": "version not set"
   },
   "tags": [
     {
-      "name": "DualSubstrate"
+      "name": "Health"
     },
     {
-      "name": "Health"
+      "name": "DualSubstrate"
     }
-  ],
-  "schemes": [
-    "https"
   ],
   "consumes": [
     "application/json"
