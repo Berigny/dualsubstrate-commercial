@@ -6,7 +6,6 @@ option go_package = "github.com/berigny/dualsubstrate-commercial/gen/go/proto/du
 
 import "google/api/annotations.proto";
 
-
 // --------- Messages ---------
 message QuaternionRequest {
   // q = [w, x, y, z] or your chosen convention; keep length=4
