@@ -60,6 +60,9 @@ class _InMemoryDB:
     def items(self):
         return self._data.items()
 
+    def close(self):
+        pass
+
 
 def _open_db(path: str):
     if HAS_ROCKS:
@@ -92,6 +95,12 @@ class Ledger:
         self.fdb = _open_db(FACTORS_DB)
         self.pdb = _open_db(POSTINGS_DB)
         self.log = self._open_event_log()
+
+    def close(self):
+        """Close the database connections."""
+        self.fdb.close()
+        self.pdb.close()
+        self.log.close()
 
     @staticmethod
     def _qp_key(key: bytes) -> bytes:

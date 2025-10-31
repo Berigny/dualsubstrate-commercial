@@ -1,31 +1,31 @@
-import pytest
-from fastapi.testclient import TestClient
-from api.main import app
+def test_qp_put_and_get(client):
+    """
+    Test storing and retrieving a value from the Qp database via the REST API.
+    """
+    key_hex = "8fc7d0d1add48e145f0430dfc381196c"
+    value = "hello ledger"
+    response = client.post(f"/qp/{key_hex}", json={"value": value}, headers={"x-api-key": "mvp-secret"})
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
 
-@pytest.fixture(name="client")
-def fixture_client() -> TestClient:
-    return TestClient(app)
+    response = client.get(f"/qp/{key_hex}", headers={"x-api-key": "mvp-secret"})
+    assert response.status_code == 200
+    assert response.json() == {"key": key_hex, "value": value}
 
-def test_qp_put_and_get(client: TestClient):
-    key = "a" * 32
-    value = "test_value"
 
-    # Test PUT
-    response_put = client.post(f"/qp/{key}", json={"value": value}, headers={"x-api-key": "mvp-secret"})
-    assert response_put.status_code == 200
-    assert response_put.json() == {"status": "ok"}
-
-    # Test GET
-    response_get = client.get(f"/qp/{key}", headers={"x-api-key": "mvp-secret"})
-    assert response_get.status_code == 200
-    assert response_get.json() == {"key": key, "value": value}
-
-def test_qp_get_not_found(client: TestClient):
-    key = "b" * 32
-    response = client.get(f"/qp/{key}", headers={"x-api-key": "mvp-secret"})
+def test_qp_get_not_found(client):
+    """
+    Test that the API returns a 404 error when a key is not found in the Qp database.
+    """
+    key_hex = "deadbeefdeadbeefdeadbeefdeadbeef"
+    response = client.get(f"/qp/{key_hex}", headers={"x-api-key": "mvp-secret"})
     assert response.status_code == 404
 
-def test_qp_invalid_key(client: TestClient):
-    key = "invalid_key"
-    response = client.get(f"/qp/{key}", headers={"x-api-key": "mvp-secret"})
+
+def test_qp_invalid_key(client):
+    """
+    Test that the API returns a 422 error when an invalid key is provided.
+    """
+    key_hex = "invalid"
+    response = client.get(f"/qp/{key_hex}", headers={"x-api-key": "mvp-secret"})
     assert response.status_code == 422
