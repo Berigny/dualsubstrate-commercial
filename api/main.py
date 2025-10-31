@@ -6,6 +6,7 @@ from pydantic import BaseModel, conint
 from typing import List, Tuple, Literal, Callable
 import json
 import time
+from contextlib import asynccontextmanager
 
 # ---------- imports ----------
 import flow_rule  # our Rust wheel
@@ -132,9 +133,14 @@ def _legalise_transition(src_node: int, dst_node: int) -> Tuple[bool, bool]:
 
 
 # ---------- FastAPI ----------
-app = FastAPI(title="DualSubstrate – Flow-Rule Ledger", version="0.3.0")
-ledger = Ledger()  # RocksDB + S3 log
-_SALIENCE_MODEL = S1Salience()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.ledger = Ledger()
+    app.state.s1_salience = S1Salience()
+    yield
+    app.state.ledger.close()
+
+app = FastAPI(title="DualSubstrate – Flow-Rule Ledger", version="0.3.0", lifespan=lifespan)
 SALIENT_THRESHOLD = 0.7
 
 
@@ -169,7 +175,7 @@ def anchor(req: AnchorReq, request: Request, _: str = Depends(require_key)):
         lawful_factors.append((f.prime, f.delta))
 
     # write to ledger
-    ledger.anchor(req.entity, lawful_factors)
+    request.app.state.ledger.anchor(req.entity, lawful_factors)
     return {
         "status": "anchored",
         "edges": edges,
@@ -181,17 +187,17 @@ def anchor(req: AnchorReq, request: Request, _: str = Depends(require_key)):
 @app.post("/query")
 @limiter.limit("200/minute")
 def query(req: QueryReq, request: Request, _: str = Depends(require_key)):
-    hits = ledger.query(req.primes)
+    hits = request.app.state.ledger.query(req.primes)
     return {"results": [{"entity": e, "weight": w} for e, w in hits]}
 
 
 @app.post("/rotate", response_model=RotateResp)
-def rotate(req: RotateReq, _: str = Depends(require_key)):
+def rotate(req: RotateReq, request: Request, _: str = Depends(require_key)):
     """Rotate the eight-prime exponent lattice via quaternion conjugation."""
-    original_checksum = ledger.checksum(req.entity)
+    original_checksum = request.app.state.ledger.checksum(req.entity)
 
     exps = [0] * len(PRIME_ARRAY)
-    for prime, exp in ledger.factors(req.entity):
+    for prime, exp in request.app.state.ledger.factors(req.entity):
         idx = PRIME_IDX.get(prime)
         if idx is not None:
             exps[idx] = exp
@@ -203,9 +209,9 @@ def rotate(req: RotateReq, _: str = Depends(require_key)):
     new_exps = core_rs.py_unpack_quaternion(q1_new, q2_new, norm1, norm2)
 
     cmds = list(zip(PRIME_ARRAY, new_exps))
-    ledger.anchor_batch(req.entity, cmds)
+    request.app.state.ledger.anchor_batch(req.entity, cmds)
 
-    rotated_checksum = ledger.checksum(req.entity)
+    rotated_checksum = request.app.state.ledger.checksum(req.entity)
     return RotateResp(
         original_checksum=original_checksum,
         rotated_checksum=rotated_checksum,
@@ -214,8 +220,8 @@ def rotate(req: RotateReq, _: str = Depends(require_key)):
 
 
 @app.get("/checksum")
-def checksum(entity: str, _: str = Depends(require_key)):
-    return {"entity": entity, "checksum": ledger.checksum(entity)}
+def checksum(entity: str, request: Request, _: str = Depends(require_key)):
+    return {"entity": entity, "checksum": request.app.state.ledger.checksum(entity)}
 
 
 # ---------- new traverse endpoint (unchanged logic) ----------
@@ -270,7 +276,7 @@ def centroid_now():
 
 
 @app.post("/qp/{key}")
-def qp_put(key: str, req: QpPut, _: str = Depends(require_key)):
+def qp_put(key: str, req: QpPut, request: Request, _: str = Depends(require_key)):
     """Store a value in the Qp column family."""
     try:
         key_bytes = bytes.fromhex(key)
@@ -278,12 +284,12 @@ def qp_put(key: str, req: QpPut, _: str = Depends(require_key)):
             raise ValueError
     except ValueError:
         raise HTTPException(422, "Key must be a 16-byte hex string.")
-    ledger.qp_put(key_bytes, req.value)
+    request.app.state.ledger.qp_put(key_bytes, req.value)
     return {"status": "ok"}
 
 
 @app.get("/qp/{key}")
-def qp_get(key: str, _: str = Depends(require_key)):
+def qp_get(key: str, request: Request, _: str = Depends(require_key)):
     """Retrieve a value from the Qp column family."""
     try:
         key_bytes = bytes.fromhex(key)
@@ -291,7 +297,7 @@ def qp_get(key: str, _: str = Depends(require_key)):
             raise ValueError
     except ValueError:
         raise HTTPException(422, "Key must be a 16-byte hex string.")
-    value = ledger.qp_get(key_bytes)
+    value = request.app.state.ledger.qp_get(key_bytes)
     if value is None:
         raise HTTPException(404, "Key not found.")
     return {"key": key, "value": value}
@@ -306,7 +312,7 @@ def store_if_salient(req: SalienceReq, request: Request, _: str = Depends(requir
     if not utterance:
         raise HTTPException(422, "Utterance must not be empty.")
 
-    score = float(_SALIENCE_MODEL.score(utterance))
+    score = float(request.app.state.s1_salience.score(utterance))
     threshold = SALIENT_THRESHOLD if req.threshold is None else float(req.threshold)
     threshold = max(0.0, min(1.0, threshold))
     if score > threshold:
@@ -316,7 +322,7 @@ def store_if_salient(req: SalienceReq, request: Request, _: str = Depends(requir
             "t": req.timestamp or time.time(),
             "score": score,
         })
-        ledger.qp_put(key_bytes, payload)
+        request.app.state.ledger.qp_put(key_bytes, payload)
         return {
             "stored": True,
             "key": key_bytes.hex(),
@@ -341,7 +347,7 @@ def exact_memory(key: str, request: Request, _: str = Depends(require_key)):
     except ValueError:
         raise HTTPException(422, "Key must be a 16-byte hex string.")
 
-    value = ledger.qp_get(key_bytes)
+    value = request.app.state.ledger.qp_get(key_bytes)
     if value is None:
         raise HTTPException(404, "Key not found.")
 
