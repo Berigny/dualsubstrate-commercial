@@ -10,6 +10,10 @@ on:
       - "Makefile"
   pull_request:
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   build:
     permissions:
