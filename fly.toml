@@ -1,22 +1,25 @@
-# fly.toml app configuration file generated for dualsubstrate-commercial on 2025-10-28T17:10:34+11:00
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
-
-app = 'dualsubstrate-commercial'
-primary_region = 'syd'
+app = "dualsubstrate-demo"
+primary_region = "syd"
 
 [build]
+  image = "ghcr.io/berigny/dualsubstrate:latest"
 
-[http_service]
+[env]
+  ROCKS_PATH = "/data/ledger"
+  LOG_LEVEL = "info"
+  DS_GATEWAY_API_KEY = "local-dev"
+
+[mounts]
+  source = "ledger_volume"
+  destination = "/data"
+
+[[services]]
   internal_port = 8080
-  force_https = true
-  auto_stop_machines = 'stop'
-  auto_start_machines = true
-  min_machines_running = 0
-  processes = ['app']
+  protocol = "tcp"
+  processes = ["app"]
+  auto_stop_machines = false
+  auto_start_machines = false
 
-[[vm]]
-  memory = '1gb'
-  cpu_kind = 'shared'
-  cpus = 1
+  [services.concurrency]
+    soft_limit = 20
+    hard_limit = 50
