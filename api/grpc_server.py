@@ -12,7 +12,7 @@ from typing import Iterable, Optional
 import grpc
 from grpc_health.v1 import health, health_pb2, health_pb2_grpc
 from grpc_reflection.v1alpha import reflection
-from google.protobuf import descriptor_pb2
+from google.protobuf import descriptor_pb2, descriptor_pool
 
 GEN_PATH = Path(__file__).resolve().parent / "gen"
 if str(GEN_PATH) not in sys.path:
@@ -47,6 +47,10 @@ def _inject_openapiv2_placeholder() -> None:
     sys.modules[module_name] = module
     setattr(root_mod, "options", options_mod)
     setattr(options_mod, "annotations_pb2", module)
+
+    # Register an empty descriptor so protobuf imports that expect the
+    # annotations file to be present can resolve their dependency.
+    descriptor_pool.Default().Add(file_proto)
 
 
 _inject_openapiv2_placeholder()
