@@ -1,15 +1,17 @@
-version: "3.8"
-
+version: "3.9"
 services:
-  api:
-    build:
-      context: .
-      dockerfile: ops/Dockerfile
-    environment:
-      API_KEYS: "demo-key"
-      EVENT_LOG_PATH: "/data/event.log"
-    volumes:
-      - ./data:/data
+  dualsubstrate:
+    image: ${DOCKER_IMAGE:-ghcr.io/berigny/dualsubstrate:latest}
     ports:
-      - "50051:50051"
-    command: ["python", "-m", "api.grpc_server"]
+      - "${HOST_API_PORT:-8080}:8080"
+      - "${HOST_UI_PORT:-7860}:7860"
+    env_file:
+      - .env.local
+    volumes:
+      - ./tmpdb:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
