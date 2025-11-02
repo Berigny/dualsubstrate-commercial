@@ -5,7 +5,7 @@ import grpc
 from dualsubstrate.v1 import health_pb2 as dualsubstrate_dot_v1_dot_health__pb2
 
 
-class HealthStub(object):
+class HealthServiceStub(object):
     """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
@@ -15,13 +15,13 @@ class HealthStub(object):
             channel: A grpc.Channel.
         """
         self.Check = channel.unary_unary(
-                '/dualsubstrate.v1.Health/Check',
-                request_serializer=dualsubstrate_dot_v1_dot_health__pb2.HealthRequest.SerializeToString,
-                response_deserializer=dualsubstrate_dot_v1_dot_health__pb2.HealthResponse.FromString,
+                '/dualsubstrate.v1.HealthService/Check',
+                request_serializer=dualsubstrate_dot_v1_dot_health__pb2.CheckRequest.SerializeToString,
+                response_deserializer=dualsubstrate_dot_v1_dot_health__pb2.CheckResponse.FromString,
                 _registered_method=True)
 
 
-class HealthServicer(object):
+class HealthServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def Check(self, request, context):
@@ -31,22 +31,22 @@ class HealthServicer(object):
         raise NotImplementedError('Method not implemented!')
 
 
-def add_HealthServicer_to_server(servicer, server):
+def add_HealthServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'Check': grpc.unary_unary_rpc_method_handler(
                     servicer.Check,
-                    request_deserializer=dualsubstrate_dot_v1_dot_health__pb2.HealthRequest.FromString,
-                    response_serializer=dualsubstrate_dot_v1_dot_health__pb2.HealthResponse.SerializeToString,
+                    request_deserializer=dualsubstrate_dot_v1_dot_health__pb2.CheckRequest.FromString,
+                    response_serializer=dualsubstrate_dot_v1_dot_health__pb2.CheckResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'dualsubstrate.v1.Health', rpc_method_handlers)
+            'dualsubstrate.v1.HealthService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('dualsubstrate.v1.Health', rpc_method_handlers)
+    server.add_registered_method_handlers('dualsubstrate.v1.HealthService', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
-class Health(object):
+class HealthService(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
@@ -63,9 +63,9 @@ class Health(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/dualsubstrate.v1.Health/Check',
-            dualsubstrate_dot_v1_dot_health__pb2.HealthRequest.SerializeToString,
-            dualsubstrate_dot_v1_dot_health__pb2.HealthResponse.FromString,
+            '/dualsubstrate.v1.HealthService/Check',
+            dualsubstrate_dot_v1_dot_health__pb2.CheckRequest.SerializeToString,
+            dualsubstrate_dot_v1_dot_health__pb2.CheckResponse.FromString,
             options,
             channel_credentials,
             insecure,

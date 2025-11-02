@@ -12,7 +12,7 @@ from typing import Iterable, Optional
 import grpc
 from grpc_health.v1 import health, health_pb2, health_pb2_grpc
 from grpc_reflection.v1alpha import reflection
-from google.protobuf import descriptor_pb2
+from google.protobuf import descriptor_pb2, descriptor_pool
 
 GEN_PATH = Path(__file__).resolve().parent / "gen"
 if str(GEN_PATH) not in sys.path:
@@ -48,6 +48,10 @@ def _inject_openapiv2_placeholder() -> None:
     setattr(root_mod, "options", options_mod)
     setattr(options_mod, "annotations_pb2", module)
 
+    # Register an empty descriptor so protobuf imports that expect the
+    # annotations file to be present can resolve their dependency.
+    descriptor_pool.Default().Add(file_proto)
+
 
 _inject_openapiv2_placeholder()
 
@@ -68,30 +72,30 @@ from core import rotate as core_rotate   # e.g., your /rotate logic wrapper
 from core import ledger as core_ledger   # add thin wrappers if needed
 
 
-class DualSubstrateHealthService(ds_health_rpc.HealthServicer):
+class DualSubstrateHealthService(ds_health_rpc.HealthServiceServicer):
     """Simple health responder mirroring the gRPC health status."""
 
     def __init__(self) -> None:
-        self._status = ds_health_pb.HealthResponse.Status.UNKNOWN
+        self._status = ds_health_pb.CheckResponse.Status.STATUS_UNKNOWN_UNSPECIFIED
 
     def set_status(self, status: int) -> None:
         self._status = status
 
-    async def Check(self, request: ds_health_pb.HealthRequest, context):  # type: ignore[override]
-        return ds_health_pb.HealthResponse(status=self._status)
+    async def Check(self, request: ds_health_pb.CheckRequest, context):  # type: ignore[override]
+        return ds_health_pb.CheckResponse(status=self._status)
 
 
-class DualSubstrateService(rpc.DualSubstrateServicer):
-    _SERVICE = "dualsubstrate.v1.DualSubstrate"
+class DualSubstrateService(rpc.DualSubstrateServiceServicer):
+    _SERVICE = "dualsubstrate.v1.DualSubstrateService"
 
-    async def Rotate(self, request: pb.QuaternionRequest, context):
+    async def Rotate(self, request: pb.RotateRequest, context):
         start = perf_counter()
         method = "Rotate"
         try:
             q = list(request.q)
             vec = list(request.vec) if request.vec else None
             rotated = core_rotate.rotate(q, vec)
-            response = pb.QuaternionResponse(vec=rotated)
+            response = pb.RotateResponse(vec=rotated)
         except grpc.RpcError as exc:
             record_err(self._SERVICE, method, exc.code().name)
             raise
@@ -128,7 +132,7 @@ class DualSubstrateService(rpc.DualSubstrateServicer):
             record_ok(self._SERVICE, method, duration)
             return response
 
-    async def ScanPrefix(self, request: pb.ScanRequest, context):
+    async def ScanPrefix(self, request: pb.ScanPrefixRequest, context):
         start = perf_counter()
         method = "ScanPrefix"
         try:
@@ -141,7 +145,7 @@ class DualSubstrateService(rpc.DualSubstrateServicer):
                 pb.LedgerRow(entity=entity, ts=ts, r=r, p=p)
                 for entity, ts, r, p in rows
             ]
-            response = pb.ScanResponse(rows=out_rows)
+            response = pb.ScanPrefixResponse(rows=out_rows)
         except grpc.RpcError as exc:
             record_err(self._SERVICE, method, exc.code().name)
             raise
@@ -209,17 +213,17 @@ async def serve() -> None:
         ]
     )
 
-    rpc.add_DualSubstrateServicer_to_server(DualSubstrateService(), server)
+    rpc.add_DualSubstrateServiceServicer_to_server(DualSubstrateService(), server)
 
     health_servicer = health.aio.HealthServicer()
     health_pb2_grpc.add_HealthServicer_to_server(health_servicer, server)
 
     dualsubstrate_health = DualSubstrateHealthService()
-    ds_health_rpc.add_HealthServicer_to_server(dualsubstrate_health, server)
+    ds_health_rpc.add_HealthServiceServicer_to_server(dualsubstrate_health, server)
 
     service_names = [
-        pb.DESCRIPTOR.services_by_name["DualSubstrate"].full_name,
-        ds_health_pb.DESCRIPTOR.services_by_name["Health"].full_name,
+        pb.DESCRIPTOR.services_by_name["DualSubstrateService"].full_name,
+        ds_health_pb.DESCRIPTOR.services_by_name["HealthService"].full_name,
     ]
     reflection.enable_server_reflection(
         service_names + [reflection.SERVICE_NAME], server
@@ -231,7 +235,7 @@ async def serve() -> None:
     await health_servicer.set(
         reflection.SERVICE_NAME, health_pb2.HealthCheckResponse.SERVING
     )
-    dualsubstrate_health.set_status(ds_health_pb.HealthResponse.Status.SERVING)
+    dualsubstrate_health.set_status(ds_health_pb.CheckResponse.Status.STATUS_SERVING)
 
     cert_path, key_path = _resolve_tls_paths(args.tls_dir, args.tls_cert, args.tls_key)
     credentials = _load_server_credentials(cert_path, key_path)
@@ -259,7 +263,9 @@ async def serve() -> None:
     try:
         await server.wait_for_termination()
     finally:
-        dualsubstrate_health.set_status(ds_health_pb.HealthResponse.Status.NOT_SERVING)
+        dualsubstrate_health.set_status(
+            ds_health_pb.CheckResponse.Status.STATUS_NOT_SERVING
+        )
         await health_servicer.enter_graceful_shutdown()
         metrics_task.cancel()
         with suppress(asyncio.CancelledError):

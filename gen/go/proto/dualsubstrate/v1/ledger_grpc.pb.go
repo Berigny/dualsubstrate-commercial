@@ -19,181 +19,181 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	DualSubstrate_Rotate_FullMethodName     = "/dualsubstrate.v1.DualSubstrate/Rotate"
-	DualSubstrate_Append_FullMethodName     = "/dualsubstrate.v1.DualSubstrate/Append"
-	DualSubstrate_ScanPrefix_FullMethodName = "/dualsubstrate.v1.DualSubstrate/ScanPrefix"
+	DualSubstrateService_Rotate_FullMethodName     = "/dualsubstrate.v1.DualSubstrateService/Rotate"
+	DualSubstrateService_Append_FullMethodName     = "/dualsubstrate.v1.DualSubstrateService/Append"
+	DualSubstrateService_ScanPrefix_FullMethodName = "/dualsubstrate.v1.DualSubstrateService/ScanPrefix"
 )
 
-// DualSubstrateClient is the client API for DualSubstrate service.
+// DualSubstrateServiceClient is the client API for DualSubstrateService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
 // --------- Service ---------
-type DualSubstrateClient interface {
-	Rotate(ctx context.Context, in *QuaternionRequest, opts ...grpc.CallOption) (*QuaternionResponse, error)
+type DualSubstrateServiceClient interface {
+	Rotate(ctx context.Context, in *RotateRequest, opts ...grpc.CallOption) (*RotateResponse, error)
 	Append(ctx context.Context, in *AppendRequest, opts ...grpc.CallOption) (*AppendResponse, error)
-	ScanPrefix(ctx context.Context, in *ScanRequest, opts ...grpc.CallOption) (*ScanResponse, error)
+	ScanPrefix(ctx context.Context, in *ScanPrefixRequest, opts ...grpc.CallOption) (*ScanPrefixResponse, error)
 }
 
-type dualSubstrateClient struct {
+type dualSubstrateServiceClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewDualSubstrateClient(cc grpc.ClientConnInterface) DualSubstrateClient {
-	return &dualSubstrateClient{cc}
+func NewDualSubstrateServiceClient(cc grpc.ClientConnInterface) DualSubstrateServiceClient {
+	return &dualSubstrateServiceClient{cc}
 }
 
-func (c *dualSubstrateClient) Rotate(ctx context.Context, in *QuaternionRequest, opts ...grpc.CallOption) (*QuaternionResponse, error) {
+func (c *dualSubstrateServiceClient) Rotate(ctx context.Context, in *RotateRequest, opts ...grpc.CallOption) (*RotateResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(QuaternionResponse)
-	err := c.cc.Invoke(ctx, DualSubstrate_Rotate_FullMethodName, in, out, cOpts...)
+	out := new(RotateResponse)
+	err := c.cc.Invoke(ctx, DualSubstrateService_Rotate_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *dualSubstrateClient) Append(ctx context.Context, in *AppendRequest, opts ...grpc.CallOption) (*AppendResponse, error) {
+func (c *dualSubstrateServiceClient) Append(ctx context.Context, in *AppendRequest, opts ...grpc.CallOption) (*AppendResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AppendResponse)
-	err := c.cc.Invoke(ctx, DualSubstrate_Append_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, DualSubstrateService_Append_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *dualSubstrateClient) ScanPrefix(ctx context.Context, in *ScanRequest, opts ...grpc.CallOption) (*ScanResponse, error) {
+func (c *dualSubstrateServiceClient) ScanPrefix(ctx context.Context, in *ScanPrefixRequest, opts ...grpc.CallOption) (*ScanPrefixResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ScanResponse)
-	err := c.cc.Invoke(ctx, DualSubstrate_ScanPrefix_FullMethodName, in, out, cOpts...)
+	out := new(ScanPrefixResponse)
+	err := c.cc.Invoke(ctx, DualSubstrateService_ScanPrefix_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// DualSubstrateServer is the server API for DualSubstrate service.
-// All implementations must embed UnimplementedDualSubstrateServer
+// DualSubstrateServiceServer is the server API for DualSubstrateService service.
+// All implementations must embed UnimplementedDualSubstrateServiceServer
 // for forward compatibility.
 //
 // --------- Service ---------
-type DualSubstrateServer interface {
-	Rotate(context.Context, *QuaternionRequest) (*QuaternionResponse, error)
+type DualSubstrateServiceServer interface {
+	Rotate(context.Context, *RotateRequest) (*RotateResponse, error)
 	Append(context.Context, *AppendRequest) (*AppendResponse, error)
-	ScanPrefix(context.Context, *ScanRequest) (*ScanResponse, error)
-	mustEmbedUnimplementedDualSubstrateServer()
+	ScanPrefix(context.Context, *ScanPrefixRequest) (*ScanPrefixResponse, error)
+	mustEmbedUnimplementedDualSubstrateServiceServer()
 }
 
-// UnimplementedDualSubstrateServer must be embedded to have
+// UnimplementedDualSubstrateServiceServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
 // pointer dereference when methods are called.
-type UnimplementedDualSubstrateServer struct{}
+type UnimplementedDualSubstrateServiceServer struct{}
 
-func (UnimplementedDualSubstrateServer) Rotate(context.Context, *QuaternionRequest) (*QuaternionResponse, error) {
+func (UnimplementedDualSubstrateServiceServer) Rotate(context.Context, *RotateRequest) (*RotateResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Rotate not implemented")
 }
-func (UnimplementedDualSubstrateServer) Append(context.Context, *AppendRequest) (*AppendResponse, error) {
+func (UnimplementedDualSubstrateServiceServer) Append(context.Context, *AppendRequest) (*AppendResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Append not implemented")
 }
-func (UnimplementedDualSubstrateServer) ScanPrefix(context.Context, *ScanRequest) (*ScanResponse, error) {
+func (UnimplementedDualSubstrateServiceServer) ScanPrefix(context.Context, *ScanPrefixRequest) (*ScanPrefixResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ScanPrefix not implemented")
 }
-func (UnimplementedDualSubstrateServer) mustEmbedUnimplementedDualSubstrateServer() {}
-func (UnimplementedDualSubstrateServer) testEmbeddedByValue()                       {}
+func (UnimplementedDualSubstrateServiceServer) mustEmbedUnimplementedDualSubstrateServiceServer() {}
+func (UnimplementedDualSubstrateServiceServer) testEmbeddedByValue()                              {}
 
-// UnsafeDualSubstrateServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to DualSubstrateServer will
+// UnsafeDualSubstrateServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to DualSubstrateServiceServer will
 // result in compilation errors.
-type UnsafeDualSubstrateServer interface {
-	mustEmbedUnimplementedDualSubstrateServer()
+type UnsafeDualSubstrateServiceServer interface {
+	mustEmbedUnimplementedDualSubstrateServiceServer()
 }
 
-func RegisterDualSubstrateServer(s grpc.ServiceRegistrar, srv DualSubstrateServer) {
-	// If the following call pancis, it indicates UnimplementedDualSubstrateServer was
+func RegisterDualSubstrateServiceServer(s grpc.ServiceRegistrar, srv DualSubstrateServiceServer) {
+	// If the following call pancis, it indicates UnimplementedDualSubstrateServiceServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization
 	// time to prevent it from happening at runtime later due to I/O.
 	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
 		t.testEmbeddedByValue()
 	}
-	s.RegisterService(&DualSubstrate_ServiceDesc, srv)
+	s.RegisterService(&DualSubstrateService_ServiceDesc, srv)
 }
 
-func _DualSubstrate_Rotate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(QuaternionRequest)
+func _DualSubstrateService_Rotate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RotateRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DualSubstrateServer).Rotate(ctx, in)
+		return srv.(DualSubstrateServiceServer).Rotate(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: DualSubstrate_Rotate_FullMethodName,
+		FullMethod: DualSubstrateService_Rotate_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DualSubstrateServer).Rotate(ctx, req.(*QuaternionRequest))
+		return srv.(DualSubstrateServiceServer).Rotate(ctx, req.(*RotateRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _DualSubstrate_Append_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _DualSubstrateService_Append_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AppendRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DualSubstrateServer).Append(ctx, in)
+		return srv.(DualSubstrateServiceServer).Append(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: DualSubstrate_Append_FullMethodName,
+		FullMethod: DualSubstrateService_Append_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DualSubstrateServer).Append(ctx, req.(*AppendRequest))
+		return srv.(DualSubstrateServiceServer).Append(ctx, req.(*AppendRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _DualSubstrate_ScanPrefix_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ScanRequest)
+func _DualSubstrateService_ScanPrefix_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ScanPrefixRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DualSubstrateServer).ScanPrefix(ctx, in)
+		return srv.(DualSubstrateServiceServer).ScanPrefix(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: DualSubstrate_ScanPrefix_FullMethodName,
+		FullMethod: DualSubstrateService_ScanPrefix_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DualSubstrateServer).ScanPrefix(ctx, req.(*ScanRequest))
+		return srv.(DualSubstrateServiceServer).ScanPrefix(ctx, req.(*ScanPrefixRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// DualSubstrate_ServiceDesc is the grpc.ServiceDesc for DualSubstrate service.
+// DualSubstrateService_ServiceDesc is the grpc.ServiceDesc for DualSubstrateService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var DualSubstrate_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "dualsubstrate.v1.DualSubstrate",
-	HandlerType: (*DualSubstrateServer)(nil),
+var DualSubstrateService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "dualsubstrate.v1.DualSubstrateService",
+	HandlerType: (*DualSubstrateServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "Rotate",
-			Handler:    _DualSubstrate_Rotate_Handler,
+			Handler:    _DualSubstrateService_Rotate_Handler,
 		},
 		{
 			MethodName: "Append",
-			Handler:    _DualSubstrate_Append_Handler,
+			Handler:    _DualSubstrateService_Append_Handler,
 		},
 		{
 			MethodName: "ScanPrefix",
-			Handler:    _DualSubstrate_ScanPrefix_Handler,
+			Handler:    _DualSubstrateService_ScanPrefix_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

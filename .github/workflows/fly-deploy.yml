@@ -5,6 +5,10 @@ on:
   push:
     branches:
       - main
+
+permissions:
+  contents: read
+  packages: read
 jobs:
   deploy:
     name: Deploy app
