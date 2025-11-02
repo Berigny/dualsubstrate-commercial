@@ -26,7 +26,7 @@ from google.api import annotations_pb2 as google_dot_api_dot_annotations__pb2
 from protoc_gen_openapiv2.options import annotations_pb2 as protoc__gen__openapiv2_dot_options_dot_annotations__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1d\x64ualsubstrate/v1/ledger.proto\x12\x10\x64ualsubstrate.v1\x1a\x1cgoogle/api/annotations.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\"3\n\x11QuaternionRequest\x12\x0c\n\x01q\x18\x01 \x03(\x02R\x01q\x12\x10\n\x03vec\x18\x02 \x03(\x02R\x03vec\"&\n\x12QuaternionResponse\x12\x10\n\x03vec\x18\x01 \x03(\x02R\x03vec\"\xc7\x01\n\x0bLedgerEntry\x12\x16\n\x06\x65ntity\x18\x01 \x01(\tR\x06\x65ntity\x12\x0c\n\x01r\x18\x02 \x01(\x0cR\x01r\x12\x0c\n\x01p\x18\x03 \x01(\x0cR\x01p\x12\x0e\n\x02ts\x18\x04 \x01(\x04R\x02ts\x12;\n\x04meta\x18\x05 \x03(\x0b\x32\'.dualsubstrate.v1.LedgerEntry.MetaEntryR\x04meta\x1a\x37\n\tMetaEntry\x12\x10\n\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n\x05value\x18\x02 \x01(\tR\x05value:\x02\x38\x01\"_\n\rAppendRequest\x12\x33\n\x05\x65ntry\x18\x01 \x01(\x0b\x32\x1d.dualsubstrate.v1.LedgerEntryR\x05\x65ntry\x12\x19\n\x08idem_key\x18\x02 \x01(\tR\x07idemKey\"=\n\x0e\x41ppendResponse\x12\x0e\n\x02ts\x18\x01 \x01(\x04R\x02ts\x12\x1b\n\tcommit_id\x18\x02 \x01(\tR\x08\x63ommitId\"X\n\x0bScanRequest\x12\x19\n\x08p_prefix\x18\x01 \x01(\x0cR\x07pPrefix\x12\x14\n\x05limit\x18\x02 \x01(\rR\x05limit\x12\x18\n\x07reverse\x18\x03 \x01(\x08R\x07reverse\"O\n\tLedgerRow\x12\x16\n\x06\x65ntity\x18\x01 \x01(\tR\x06\x65ntity\x12\x0e\n\x02ts\x18\x02 \x01(\x04R\x02ts\x12\x0c\n\x01r\x18\x03 \x01(\x0cR\x01r\x12\x0c\n\x01p\x18\x04 \x01(\x0cR\x01p\"?\n\x0cScanResponse\x12/\n\x04rows\x18\x01 \x03(\x0b\x32\x1b.dualsubstrate.v1.LedgerRowR\x04rows2\xc8\x02\n\rDualSubstrate\x12j\n\x06Rotate\x12#.dualsubstrate.v1.QuaternionRequest\x1a$.dualsubstrate.v1.QuaternionResponse\"\x15\x82\xd3\xe4\x93\x02\x0f\"\n/v1/rotate:\x01*\x12\x62\n\x06\x41ppend\x12\x1f.dualsubstrate.v1.AppendRequest\x1a .dualsubstrate.v1.AppendResponse\"\x15\x82\xd3\xe4\x93\x02\x0f\"\n/v1/append:\x01*\x12g\n\nScanPrefix\x12\x1d.dualsubstrate.v1.ScanRequest\x1a\x1e.dualsubstrate.v1.ScanResponse\"\x1a\x82\xd3\xe4\x93\x02\x14\"\x0f/v1/scan_prefix:\x01*B\xb2\x01ZLgithub.com/berigny/dualsubstrate-commercial/gen/go/proto/dualsubstrate/v1;v1\x92\x41\x61\x12\x38\n\x11\x44ualSubstrate API\x12\x1ep-adic quaternion memory layer2\x03\x31.0*\x01\x02\x32\x10\x61pplication/json:\x10\x61pplication/jsonb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1d\x64ualsubstrate/v1/ledger.proto\x12\x10\x64ualsubstrate.v1\x1a\x1cgoogle/api/annotations.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\"/\n\rRotateRequest\x12\x0c\n\x01q\x18\x01 \x03(\x02R\x01q\x12\x10\n\x03vec\x18\x02 \x03(\x02R\x03vec\"\"\n\x0eRotateResponse\x12\x10\n\x03vec\x18\x01 \x03(\x02R\x03vec\"\xc7\x01\n\x0bLedgerEntry\x12\x16\n\x06\x65ntity\x18\x01 \x01(\tR\x06\x65ntity\x12\x0c\n\x01r\x18\x02 \x01(\x0cR\x01r\x12\x0c\n\x01p\x18\x03 \x01(\x0cR\x01p\x12\x0e\n\x02ts\x18\x04 \x01(\x04R\x02ts\x12;\n\x04meta\x18\x05 \x03(\x0b\x32\'.dualsubstrate.v1.LedgerEntry.MetaEntryR\x04meta\x1a\x37\n\tMetaEntry\x12\x10\n\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n\x05value\x18\x02 \x01(\tR\x05value:\x02\x38\x01\"_\n\rAppendRequest\x12\x33\n\x05\x65ntry\x18\x01 \x01(\x0b\x32\x1d.dualsubstrate.v1.LedgerEntryR\x05\x65ntry\x12\x19\n\x08idem_key\x18\x02 \x01(\tR\x07idemKey\"=\n\x0e\x41ppendResponse\x12\x0e\n\x02ts\x18\x01 \x01(\x04R\x02ts\x12\x1b\n\tcommit_id\x18\x02 \x01(\tR\x08\x63ommitId\"^\n\x11ScanPrefixRequest\x12\x19\n\x08p_prefix\x18\x01 \x01(\x0cR\x07pPrefix\x12\x14\n\x05limit\x18\x02 \x01(\rR\x05limit\x12\x18\n\x07reverse\x18\x03 \x01(\x08R\x07reverse\"O\n\tLedgerRow\x12\x16\n\x06\x65ntity\x18\x01 \x01(\tR\x06\x65ntity\x12\x0e\n\x02ts\x18\x02 \x01(\x04R\x02ts\x12\x0c\n\x01r\x18\x03 \x01(\x0cR\x01r\x12\x0c\n\x01p\x18\x04 \x01(\x0cR\x01p\"E\n\x12ScanPrefixResponse\x12/\n\x04rows\x18\x01 \x03(\x0b\x32\x1b.dualsubstrate.v1.LedgerRowR\x04rows2\xd3\x02\n\x14\x44ualSubstrateService\x12\x62\n\x06Rotate\x12\x1f.dualsubstrate.v1.RotateRequest\x1a .dualsubstrate.v1.RotateResponse\"\x15\x82\xd3\xe4\x93\x02\x0f\"\n/v1/rotate:\x01*\x12\x62\n\x06\x41ppend\x12\x1f.dualsubstrate.v1.AppendRequest\x1a .dualsubstrate.v1.AppendResponse\"\x15\x82\xd3\xe4\x93\x02\x0f\"\n/v1/append:\x01*\x12s\n\nScanPrefix\x12#.dualsubstrate.v1.ScanPrefixRequest\x1a$.dualsubstrate.v1.ScanPrefixResponse\"\x1a\x82\xd3\xe4\x93\x02\x14\"\x0f/v1/scan_prefix:\x01*B\xb2\x01ZLgithub.com/berigny/dualsubstrate-commercial/gen/go/proto/dualsubstrate/v1;v1\x92\x41\x61\x12\x38\n\x11\x44ualSubstrate API\x12\x1ep-adic quaternion memory layer2\x03\x31.0*\x01\x02\x32\x10\x61pplication/json:\x10\x61pplication/jsonb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -36,30 +36,30 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._serialized_options = b'ZLgithub.com/berigny/dualsubstrate-commercial/gen/go/proto/dualsubstrate/v1;v1\222Aa\0228\n\021DualSubstrate API\022\036p-adic quaternion memory layer2\0031.0*\001\0022\020application/json:\020application/json'
   _globals['_LEDGERENTRY_METAENTRY']._loaded_options = None
   _globals['_LEDGERENTRY_METAENTRY']._serialized_options = b'8\001'
-  _globals['_DUALSUBSTRATE'].methods_by_name['Rotate']._loaded_options = None
-  _globals['_DUALSUBSTRATE'].methods_by_name['Rotate']._serialized_options = b'\202\323\344\223\002\017\"\n/v1/rotate:\001*'
-  _globals['_DUALSUBSTRATE'].methods_by_name['Append']._loaded_options = None
-  _globals['_DUALSUBSTRATE'].methods_by_name['Append']._serialized_options = b'\202\323\344\223\002\017\"\n/v1/append:\001*'
-  _globals['_DUALSUBSTRATE'].methods_by_name['ScanPrefix']._loaded_options = None
-  _globals['_DUALSUBSTRATE'].methods_by_name['ScanPrefix']._serialized_options = b'\202\323\344\223\002\024\"\017/v1/scan_prefix:\001*'
-  _globals['_QUATERNIONREQUEST']._serialized_start=129
-  _globals['_QUATERNIONREQUEST']._serialized_end=180
-  _globals['_QUATERNIONRESPONSE']._serialized_start=182
-  _globals['_QUATERNIONRESPONSE']._serialized_end=220
-  _globals['_LEDGERENTRY']._serialized_start=223
-  _globals['_LEDGERENTRY']._serialized_end=422
-  _globals['_LEDGERENTRY_METAENTRY']._serialized_start=367
-  _globals['_LEDGERENTRY_METAENTRY']._serialized_end=422
-  _globals['_APPENDREQUEST']._serialized_start=424
-  _globals['_APPENDREQUEST']._serialized_end=519
-  _globals['_APPENDRESPONSE']._serialized_start=521
-  _globals['_APPENDRESPONSE']._serialized_end=582
-  _globals['_SCANREQUEST']._serialized_start=584
-  _globals['_SCANREQUEST']._serialized_end=672
-  _globals['_LEDGERROW']._serialized_start=674
-  _globals['_LEDGERROW']._serialized_end=753
-  _globals['_SCANRESPONSE']._serialized_start=755
-  _globals['_SCANRESPONSE']._serialized_end=818
-  _globals['_DUALSUBSTRATE']._serialized_start=821
-  _globals['_DUALSUBSTRATE']._serialized_end=1149
+  _globals['_DUALSUBSTRATESERVICE'].methods_by_name['Rotate']._loaded_options = None
+  _globals['_DUALSUBSTRATESERVICE'].methods_by_name['Rotate']._serialized_options = b'\202\323\344\223\002\017\"\n/v1/rotate:\001*'
+  _globals['_DUALSUBSTRATESERVICE'].methods_by_name['Append']._loaded_options = None
+  _globals['_DUALSUBSTRATESERVICE'].methods_by_name['Append']._serialized_options = b'\202\323\344\223\002\017\"\n/v1/append:\001*'
+  _globals['_DUALSUBSTRATESERVICE'].methods_by_name['ScanPrefix']._loaded_options = None
+  _globals['_DUALSUBSTRATESERVICE'].methods_by_name['ScanPrefix']._serialized_options = b'\202\323\344\223\002\024\"\017/v1/scan_prefix:\001*'
+  _globals['_ROTATEREQUEST']._serialized_start=129
+  _globals['_ROTATEREQUEST']._serialized_end=176
+  _globals['_ROTATERESPONSE']._serialized_start=178
+  _globals['_ROTATERESPONSE']._serialized_end=212
+  _globals['_LEDGERENTRY']._serialized_start=215
+  _globals['_LEDGERENTRY']._serialized_end=414
+  _globals['_LEDGERENTRY_METAENTRY']._serialized_start=359
+  _globals['_LEDGERENTRY_METAENTRY']._serialized_end=414
+  _globals['_APPENDREQUEST']._serialized_start=416
+  _globals['_APPENDREQUEST']._serialized_end=511
+  _globals['_APPENDRESPONSE']._serialized_start=513
+  _globals['_APPENDRESPONSE']._serialized_end=574
+  _globals['_SCANPREFIXREQUEST']._serialized_start=576
+  _globals['_SCANPREFIXREQUEST']._serialized_end=670
+  _globals['_LEDGERROW']._serialized_start=672
+  _globals['_LEDGERROW']._serialized_end=751
+  _globals['_SCANPREFIXRESPONSE']._serialized_start=753
+  _globals['_SCANPREFIXRESPONSE']._serialized_end=822
+  _globals['_DUALSUBSTRATESERVICE']._serialized_start=825
+  _globals['_DUALSUBSTRATESERVICE']._serialized_end=1164
 # @@protoc_insertion_point(module_scope)

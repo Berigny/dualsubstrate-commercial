@@ -47,16 +47,8 @@ jobs:
       - name: Install protoc-gen-openapiv2 plugin
         run: |
           set -euxo pipefail
-          INSTALL_DIR="$HOME/bin"
-          mkdir -p "$INSTALL_DIR"
-          curl -sSL \
-            -o /tmp/protoc-gen-openapiv2.tgz \
-            https://github.com/grpc-ecosystem/grpc-gateway/releases/download/v2.19.0/protoc-gen-openapiv2-v2.19.0-linux-x86_64.tar.gz
-          tar -xzf /tmp/protoc-gen-openapiv2.tgz -C /tmp
-          mv /tmp/protoc-gen-openapiv2-v2.19.0-linux-x86_64/protoc-gen-openapiv2 "$INSTALL_DIR/"
-          chmod +x "$INSTALL_DIR/protoc-gen-openapiv2"
-          echo "$INSTALL_DIR" >> "$GITHUB_PATH"
-          rm -rf /tmp/protoc-gen-openapiv2.tgz /tmp/protoc-gen-openapiv2-v2.19.0-linux-x86_64
+          go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2@v2.19.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Generate OpenAPI
         run: |
           set -euxo pipefail

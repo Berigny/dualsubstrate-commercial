@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1d\x64ualsubstrate/v1/health.proto\x12\x10\x64ualsubstrate.v1\"\x0f\n\rHealthRequest\"\x86\x01\n\x0eHealthResponse\x12?\n\x06status\x18\x01 \x01(\x0e\x32\'.dualsubstrate.v1.HealthResponse.StatusR\x06status\"3\n\x06Status\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x0b\n\x07SERVING\x10\x01\x12\x0f\n\x0bNOT_SERVING\x10\x02\x32T\n\x06Health\x12J\n\x05\x43heck\x12\x1f.dualsubstrate.v1.HealthRequest\x1a .dualsubstrate.v1.HealthResponseBNZLgithub.com/berigny/dualsubstrate-commercial/gen/go/proto/dualsubstrate/v1;v1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1d\x64ualsubstrate/v1/health.proto\x12\x10\x64ualsubstrate.v1\"\x0e\n\x0c\x43heckRequest\"\xa5\x01\n\rCheckResponse\x12>\n\x06status\x18\x01 \x01(\x0e\x32&.dualsubstrate.v1.CheckResponse.StatusR\x06status\"T\n\x06Status\x12\x1e\n\x1aSTATUS_UNKNOWN_UNSPECIFIED\x10\x00\x12\x12\n\x0eSTATUS_SERVING\x10\x01\x12\x16\n\x12STATUS_NOT_SERVING\x10\x02\x32Y\n\rHealthService\x12H\n\x05\x43heck\x12\x1e.dualsubstrate.v1.CheckRequest\x1a\x1f.dualsubstrate.v1.CheckResponseBNZLgithub.com/berigny/dualsubstrate-commercial/gen/go/proto/dualsubstrate/v1;v1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -32,12 +32,12 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'dualsubstrate.v1.health_pb2
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'ZLgithub.com/berigny/dualsubstrate-commercial/gen/go/proto/dualsubstrate/v1;v1'
-  _globals['_HEALTHREQUEST']._serialized_start=51
-  _globals['_HEALTHREQUEST']._serialized_end=66
-  _globals['_HEALTHRESPONSE']._serialized_start=69
-  _globals['_HEALTHRESPONSE']._serialized_end=203
-  _globals['_HEALTHRESPONSE_STATUS']._serialized_start=152
-  _globals['_HEALTHRESPONSE_STATUS']._serialized_end=203
-  _globals['_HEALTH']._serialized_start=205
-  _globals['_HEALTH']._serialized_end=289
+  _globals['_CHECKREQUEST']._serialized_start=51
+  _globals['_CHECKREQUEST']._serialized_end=65
+  _globals['_CHECKRESPONSE']._serialized_start=68
+  _globals['_CHECKRESPONSE']._serialized_end=233
+  _globals['_CHECKRESPONSE_STATUS']._serialized_start=149
+  _globals['_CHECKRESPONSE_STATUS']._serialized_end=233
+  _globals['_HEALTHSERVICE']._serialized_start=235
+  _globals['_HEALTHSERVICE']._serialized_end=324
 # @@protoc_insertion_point(module_scope)
