@@ -2,8 +2,6 @@ import argparse
 import asyncio
 import logging
 import os
-import importlib
-import pkgutil
 import sys
 import types
 from contextlib import suppress
@@ -14,119 +12,44 @@ from typing import Iterable, Optional
 import grpc
 from grpc_health.v1 import health, health_pb2, health_pb2_grpc
 from grpc_reflection.v1alpha import reflection
-from google.protobuf import descriptor_pb2, descriptor_pool, text_format
-from google.protobuf.internal import builder as _builder
-from google.protobuf import symbol_database as _symbol_database
+from google.protobuf import descriptor_pb2
 
 GEN_PATH = Path(__file__).resolve().parent / "gen"
 if str(GEN_PATH) not in sys.path:
     sys.path.insert(0, str(GEN_PATH))
 
 
-def _ensure_openapiv2_annotations() -> None:
-    """Best-effort registration of protoc-gen-openapiv2 annotations for generated stubs."""
+def _inject_openapiv2_placeholder() -> None:
+    """Inject a minimal placeholder module for protoc-gen-openapiv2 annotations."""
 
-    module_name = "protoc_gen_openapiv2.options.annotations_pb2"
+    pkg_root = "protoc_gen_openapiv2"
+    module_name = f"{pkg_root}.options.annotations_pb2"
+
     if module_name in sys.modules:
         return
 
-    try:  # pragma: no cover - module already provisioned
-        import protoc_gen_openapiv2.options.annotations_pb2 as annotations_pb2  # type: ignore[import]
-    except ModuleNotFoundError:
-        module = _load_openapiv2_descriptor(module_name)
-    else:
-        sys.modules[module_name] = annotations_pb2  # type: ignore[attr-defined]
-        return
-
-    _register_openapiv2_package(module_name, module)
-
-
-def _load_openapiv2_descriptor(module_name: str) -> types.ModuleType:
-    """Attempt to load or synthesise the OpenAPI annotations descriptor."""
-
-    descriptor = None
-    serialized: bytes | None = None
-
-    try:
-        importlib.import_module("grpc_tools")
-    except ModuleNotFoundError:
-        grpc_tools_available = False
-    else:
-        grpc_tools_available = True
-
-    if grpc_tools_available:  # pragma: no branch
-        candidates = [
-            ("grpc_tools", "_proto/protoc-gen-openapiv2/options/annotations.binpb", "bin"),
-            ("grpc_tools", "_proto/protoc-gen-openapiv2/options/annotations.pb", "bin"),
-            ("grpc_tools", "_proto/protoc-gen-openapiv2/options/annotations.proto", "text"),
-        ]
-        for package, resource, resource_type in candidates:
-            try:
-                data = pkgutil.get_data(package, resource)
-            except (ModuleNotFoundError, OSError):
-                continue
-            if not data:
-                continue
-            pool = descriptor_pool.Default()
-            try:
-                if resource_type == "bin":
-                    descriptor = pool.AddSerializedFile(data)
-                    serialized = data
-                else:
-                    file_proto = descriptor_pb2.FileDescriptorProto()
-                    text_format.Merge(data.decode("utf-8"), file_proto)
-                    descriptor = pool.Add(file_proto)
-                    serialized = file_proto.SerializeToString()
-                break
-            except Exception:  # pragma: no cover - descriptor registration failure
-                descriptor = None
-                serialized = None
-                continue
+    file_proto = descriptor_pb2.FileDescriptorProto()
+    file_proto.name = "protoc-gen-openapiv2/options/annotations.proto"
+    file_proto.package = "protoc_gen_openapiv2.options"
 
     module = types.ModuleType(module_name)
-    if descriptor and serialized:
-        module.DESCRIPTOR = descriptor
-        _builder.BuildMessageAndEnumDescriptors(descriptor, module.__dict__)
-        _builder.BuildTopDescriptorsAndMessages(descriptor, module_name, module.__dict__)
+    module.DESCRIPTOR = file_proto  # type: ignore[attr-defined]
 
-        sym_db = _symbol_database.Default()
-        try:
-            sym_db.pool.FindFileByName("protoc-gen-openapiv2/options/annotations.proto")
-        except KeyError:
-            sym_db.pool.AddSerializedFile(serialized)
-    else:  # pragma: no cover - stub fallback
-        module.DESCRIPTOR = descriptor_pb2.FileDescriptorProto()
-
-    return module
-
-
-def _register_openapiv2_package(module_name: str, module: types.ModuleType) -> None:
-    """Install the synthetic module under the expected namespace."""
-
-    pkg_root = "protoc_gen_openapiv2"
     root_mod = sys.modules.get(pkg_root)
     if root_mod is None:
         root_mod = types.ModuleType(pkg_root)
-        root_mod.__path__ = []  # type: ignore[attr-defined]
         sys.modules[pkg_root] = root_mod
-    elif not hasattr(root_mod, "__path__"):
-        root_mod.__path__ = []  # type: ignore[attr-defined]
-
-    options_name = f"{pkg_root}.options"
-    options_mod = sys.modules.get(options_name)
+    options_mod = sys.modules.get(f"{pkg_root}.options")
     if options_mod is None:
-        options_mod = types.ModuleType(options_name)
-        options_mod.__path__ = []  # type: ignore[attr-defined]
-        sys.modules[options_name] = options_mod
-    elif not hasattr(options_mod, "__path__"):
-        options_mod.__path__ = []  # type: ignore[attr-defined]
+        options_mod = types.ModuleType(f"{pkg_root}.options")
+        sys.modules[f"{pkg_root}.options"] = options_mod
 
     sys.modules[module_name] = module
     setattr(root_mod, "options", options_mod)
     setattr(options_mod, "annotations_pb2", module)
 
 
-_ensure_openapiv2_annotations()
+_inject_openapiv2_placeholder()
 
 from api.gen.dualsubstrate.v1 import health_pb2 as ds_health_pb
 from api.gen.dualsubstrate.v1 import health_pb2_grpc as ds_health_rpc
