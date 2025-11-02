@@ -17,6 +17,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Login to GitHub Container Registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | \
+            docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Login to Fly.io registry
+        if: ${{ secrets.FLY_ACCESS_TOKEN != '' }}
+        run: |
+          echo "${{ secrets.FLY_ACCESS_TOKEN }}" | \
+            docker login registry.fly.io -u x --password-stdin
       - uses: bufbuild/buf-setup-action@v1
         with:
           version: "1.32.0"
@@ -32,6 +43,8 @@ jobs:
   comment:
     if: failure()
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     steps:
       - uses: actions/github-script@v7
         with:
