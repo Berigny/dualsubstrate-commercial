@@ -5,4 +5,4 @@ headless = true
 magicEnabled = false
 
 [dep]
-requirementsFile = "requirements-app.txt"
+requirementsFile = "requirements.txt"
