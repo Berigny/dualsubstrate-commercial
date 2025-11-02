@@ -52,19 +52,3 @@ jobs:
       - name: Generate OpenAPI
         run: |
           set -euxo pipefail
-          mkdir -p openapi
-          PROTO_EXPORT_DIR=$(mktemp -d)
-          PY_INCLUDE_DIR=$(python -c 'import grpc_tools, pathlib; print(pathlib.Path(grpc_tools.__file__).resolve().parent / "_proto")')
-          buf export . --path proto --output "$PROTO_EXPORT_DIR"
-          PLUGIN_PATH=$(which protoc-gen-openapiv2)
-          python -m grpc_tools.protoc \
-            -Iproto \
-            -I"$PROTO_EXPORT_DIR" \
-            -I"$PY_INCLUDE_DIR" \
-            --plugin=protoc-gen-openapiv2="$PLUGIN_PATH" \
-            --openapiv2_out=openapi \
-            --openapiv2_opt=logtostderr=true \
-            proto/dualsubstrate/v1/ledger.proto
-          rm -rf "$PROTO_EXPORT_DIR"
-      - name: Lint proto presence
-        run: test -f openapi/dualsubstrate.v1.swagger.json

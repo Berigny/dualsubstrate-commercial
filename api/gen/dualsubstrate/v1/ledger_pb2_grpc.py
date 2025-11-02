@@ -5,7 +5,7 @@ import grpc
 from dualsubstrate.v1 import ledger_pb2 as dualsubstrate_dot_v1_dot_ledger__pb2
 
 
-class DualSubstrateStub(object):
+class DualSubstrateServiceStub(object):
     """--------- Service ---------
     """
 
@@ -16,23 +16,23 @@ class DualSubstrateStub(object):
             channel: A grpc.Channel.
         """
         self.Rotate = channel.unary_unary(
-                '/dualsubstrate.v1.DualSubstrate/Rotate',
-                request_serializer=dualsubstrate_dot_v1_dot_ledger__pb2.QuaternionRequest.SerializeToString,
-                response_deserializer=dualsubstrate_dot_v1_dot_ledger__pb2.QuaternionResponse.FromString,
+                '/dualsubstrate.v1.DualSubstrateService/Rotate',
+                request_serializer=dualsubstrate_dot_v1_dot_ledger__pb2.RotateRequest.SerializeToString,
+                response_deserializer=dualsubstrate_dot_v1_dot_ledger__pb2.RotateResponse.FromString,
                 _registered_method=True)
         self.Append = channel.unary_unary(
-                '/dualsubstrate.v1.DualSubstrate/Append',
+                '/dualsubstrate.v1.DualSubstrateService/Append',
                 request_serializer=dualsubstrate_dot_v1_dot_ledger__pb2.AppendRequest.SerializeToString,
                 response_deserializer=dualsubstrate_dot_v1_dot_ledger__pb2.AppendResponse.FromString,
                 _registered_method=True)
         self.ScanPrefix = channel.unary_unary(
-                '/dualsubstrate.v1.DualSubstrate/ScanPrefix',
-                request_serializer=dualsubstrate_dot_v1_dot_ledger__pb2.ScanRequest.SerializeToString,
-                response_deserializer=dualsubstrate_dot_v1_dot_ledger__pb2.ScanResponse.FromString,
+                '/dualsubstrate.v1.DualSubstrateService/ScanPrefix',
+                request_serializer=dualsubstrate_dot_v1_dot_ledger__pb2.ScanPrefixRequest.SerializeToString,
+                response_deserializer=dualsubstrate_dot_v1_dot_ledger__pb2.ScanPrefixResponse.FromString,
                 _registered_method=True)
 
 
-class DualSubstrateServicer(object):
+class DualSubstrateServiceServicer(object):
     """--------- Service ---------
     """
 
@@ -55,12 +55,12 @@ class DualSubstrateServicer(object):
         raise NotImplementedError('Method not implemented!')
 
 
-def add_DualSubstrateServicer_to_server(servicer, server):
+def add_DualSubstrateServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'Rotate': grpc.unary_unary_rpc_method_handler(
                     servicer.Rotate,
-                    request_deserializer=dualsubstrate_dot_v1_dot_ledger__pb2.QuaternionRequest.FromString,
-                    response_serializer=dualsubstrate_dot_v1_dot_ledger__pb2.QuaternionResponse.SerializeToString,
+                    request_deserializer=dualsubstrate_dot_v1_dot_ledger__pb2.RotateRequest.FromString,
+                    response_serializer=dualsubstrate_dot_v1_dot_ledger__pb2.RotateResponse.SerializeToString,
             ),
             'Append': grpc.unary_unary_rpc_method_handler(
                     servicer.Append,
@@ -69,18 +69,18 @@ def add_DualSubstrateServicer_to_server(servicer, server):
             ),
             'ScanPrefix': grpc.unary_unary_rpc_method_handler(
                     servicer.ScanPrefix,
-                    request_deserializer=dualsubstrate_dot_v1_dot_ledger__pb2.ScanRequest.FromString,
-                    response_serializer=dualsubstrate_dot_v1_dot_ledger__pb2.ScanResponse.SerializeToString,
+                    request_deserializer=dualsubstrate_dot_v1_dot_ledger__pb2.ScanPrefixRequest.FromString,
+                    response_serializer=dualsubstrate_dot_v1_dot_ledger__pb2.ScanPrefixResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'dualsubstrate.v1.DualSubstrate', rpc_method_handlers)
+            'dualsubstrate.v1.DualSubstrateService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('dualsubstrate.v1.DualSubstrate', rpc_method_handlers)
+    server.add_registered_method_handlers('dualsubstrate.v1.DualSubstrateService', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
-class DualSubstrate(object):
+class DualSubstrateService(object):
     """--------- Service ---------
     """
 
@@ -98,9 +98,9 @@ class DualSubstrate(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/dualsubstrate.v1.DualSubstrate/Rotate',
-            dualsubstrate_dot_v1_dot_ledger__pb2.QuaternionRequest.SerializeToString,
-            dualsubstrate_dot_v1_dot_ledger__pb2.QuaternionResponse.FromString,
+            '/dualsubstrate.v1.DualSubstrateService/Rotate',
+            dualsubstrate_dot_v1_dot_ledger__pb2.RotateRequest.SerializeToString,
+            dualsubstrate_dot_v1_dot_ledger__pb2.RotateResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -125,7 +125,7 @@ class DualSubstrate(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/dualsubstrate.v1.DualSubstrate/Append',
+            '/dualsubstrate.v1.DualSubstrateService/Append',
             dualsubstrate_dot_v1_dot_ledger__pb2.AppendRequest.SerializeToString,
             dualsubstrate_dot_v1_dot_ledger__pb2.AppendResponse.FromString,
             options,
@@ -152,9 +152,9 @@ class DualSubstrate(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/dualsubstrate.v1.DualSubstrate/ScanPrefix',
-            dualsubstrate_dot_v1_dot_ledger__pb2.ScanRequest.SerializeToString,
-            dualsubstrate_dot_v1_dot_ledger__pb2.ScanResponse.FromString,
+            '/dualsubstrate.v1.DualSubstrateService/ScanPrefix',
+            dualsubstrate_dot_v1_dot_ledger__pb2.ScanPrefixRequest.SerializeToString,
+            dualsubstrate_dot_v1_dot_ledger__pb2.ScanPrefixResponse.FromString,
             options,
             channel_credentials,
             insecure,

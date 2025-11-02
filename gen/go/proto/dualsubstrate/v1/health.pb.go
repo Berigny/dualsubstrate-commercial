@@ -21,75 +21,75 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type HealthResponse_Status int32
+type CheckResponse_Status int32
 
 const (
-	HealthResponse_UNKNOWN     HealthResponse_Status = 0
-	HealthResponse_SERVING     HealthResponse_Status = 1
-	HealthResponse_NOT_SERVING HealthResponse_Status = 2
+	CheckResponse_STATUS_UNKNOWN_UNSPECIFIED CheckResponse_Status = 0
+	CheckResponse_STATUS_SERVING             CheckResponse_Status = 1
+	CheckResponse_STATUS_NOT_SERVING         CheckResponse_Status = 2
 )
 
-// Enum value maps for HealthResponse_Status.
+// Enum value maps for CheckResponse_Status.
 var (
-	HealthResponse_Status_name = map[int32]string{
-		0: "UNKNOWN",
-		1: "SERVING",
-		2: "NOT_SERVING",
+	CheckResponse_Status_name = map[int32]string{
+		0: "STATUS_UNKNOWN_UNSPECIFIED",
+		1: "STATUS_SERVING",
+		2: "STATUS_NOT_SERVING",
 	}
-	HealthResponse_Status_value = map[string]int32{
-		"UNKNOWN":     0,
-		"SERVING":     1,
-		"NOT_SERVING": 2,
+	CheckResponse_Status_value = map[string]int32{
+		"STATUS_UNKNOWN_UNSPECIFIED": 0,
+		"STATUS_SERVING":             1,
+		"STATUS_NOT_SERVING":         2,
 	}
 )
 
-func (x HealthResponse_Status) Enum() *HealthResponse_Status {
-	p := new(HealthResponse_Status)
+func (x CheckResponse_Status) Enum() *CheckResponse_Status {
+	p := new(CheckResponse_Status)
 	*p = x
 	return p
 }
 
-func (x HealthResponse_Status) String() string {
+func (x CheckResponse_Status) String() string {
 	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (HealthResponse_Status) Descriptor() protoreflect.EnumDescriptor {
+func (CheckResponse_Status) Descriptor() protoreflect.EnumDescriptor {
 	return file_dualsubstrate_v1_health_proto_enumTypes[0].Descriptor()
 }
 
-func (HealthResponse_Status) Type() protoreflect.EnumType {
+func (CheckResponse_Status) Type() protoreflect.EnumType {
 	return &file_dualsubstrate_v1_health_proto_enumTypes[0]
 }
 
-func (x HealthResponse_Status) Number() protoreflect.EnumNumber {
+func (x CheckResponse_Status) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use HealthResponse_Status.Descriptor instead.
-func (HealthResponse_Status) EnumDescriptor() ([]byte, []int) {
+// Deprecated: Use CheckResponse_Status.Descriptor instead.
+func (CheckResponse_Status) EnumDescriptor() ([]byte, []int) {
 	return file_dualsubstrate_v1_health_proto_rawDescGZIP(), []int{1, 0}
 }
 
-type HealthRequest struct {
+type CheckRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *HealthRequest) Reset() {
-	*x = HealthRequest{}
+func (x *CheckRequest) Reset() {
+	*x = CheckRequest{}
 	mi := &file_dualsubstrate_v1_health_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *HealthRequest) String() string {
+func (x *CheckRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*HealthRequest) ProtoMessage() {}
+func (*CheckRequest) ProtoMessage() {}
 
-func (x *HealthRequest) ProtoReflect() protoreflect.Message {
+func (x *CheckRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_dualsubstrate_v1_health_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -101,32 +101,32 @@ func (x *HealthRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use HealthRequest.ProtoReflect.Descriptor instead.
-func (*HealthRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use CheckRequest.ProtoReflect.Descriptor instead.
+func (*CheckRequest) Descriptor() ([]byte, []int) {
 	return file_dualsubstrate_v1_health_proto_rawDescGZIP(), []int{0}
 }
 
-type HealthResponse struct {
+type CheckResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Status        HealthResponse_Status  `protobuf:"varint,1,opt,name=status,proto3,enum=dualsubstrate.v1.HealthResponse_Status" json:"status,omitempty"`
+	Status        CheckResponse_Status   `protobuf:"varint,1,opt,name=status,proto3,enum=dualsubstrate.v1.CheckResponse_Status" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *HealthResponse) Reset() {
-	*x = HealthResponse{}
+func (x *CheckResponse) Reset() {
+	*x = CheckResponse{}
 	mi := &file_dualsubstrate_v1_health_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *HealthResponse) String() string {
+func (x *CheckResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*HealthResponse) ProtoMessage() {}
+func (*CheckResponse) ProtoMessage() {}
 
-func (x *HealthResponse) ProtoReflect() protoreflect.Message {
+func (x *CheckResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_dualsubstrate_v1_health_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -138,32 +138,32 @@ func (x *HealthResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use HealthResponse.ProtoReflect.Descriptor instead.
-func (*HealthResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use CheckResponse.ProtoReflect.Descriptor instead.
+func (*CheckResponse) Descriptor() ([]byte, []int) {
 	return file_dualsubstrate_v1_health_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *HealthResponse) GetStatus() HealthResponse_Status {
+func (x *CheckResponse) GetStatus() CheckResponse_Status {
 	if x != nil {
 		return x.Status
 	}
-	return HealthResponse_UNKNOWN
+	return CheckResponse_STATUS_UNKNOWN_UNSPECIFIED
 }
 
 var File_dualsubstrate_v1_health_proto protoreflect.FileDescriptor
 
 const file_dualsubstrate_v1_health_proto_rawDesc = "" +
 	"\n" +
-	"\x1ddualsubstrate/v1/health.proto\x12\x10dualsubstrate.v1\"\x0f\n" +
-	"\rHealthRequest\"\x86\x01\n" +
-	"\x0eHealthResponse\x12?\n" +
-	"\x06status\x18\x01 \x01(\x0e2'.dualsubstrate.v1.HealthResponse.StatusR\x06status\"3\n" +
-	"\x06Status\x12\v\n" +
-	"\aUNKNOWN\x10\x00\x12\v\n" +
-	"\aSERVING\x10\x01\x12\x0f\n" +
-	"\vNOT_SERVING\x10\x022T\n" +
-	"\x06Health\x12J\n" +
-	"\x05Check\x12\x1f.dualsubstrate.v1.HealthRequest\x1a .dualsubstrate.v1.HealthResponseBNZLgithub.com/berigny/dualsubstrate-commercial/gen/go/proto/dualsubstrate/v1;v1b\x06proto3"
+	"\x1ddualsubstrate/v1/health.proto\x12\x10dualsubstrate.v1\"\x0e\n" +
+	"\fCheckRequest\"\xa5\x01\n" +
+	"\rCheckResponse\x12>\n" +
+	"\x06status\x18\x01 \x01(\x0e2&.dualsubstrate.v1.CheckResponse.StatusR\x06status\"T\n" +
+	"\x06Status\x12\x1e\n" +
+	"\x1aSTATUS_UNKNOWN_UNSPECIFIED\x10\x00\x12\x12\n" +
+	"\x0eSTATUS_SERVING\x10\x01\x12\x16\n" +
+	"\x12STATUS_NOT_SERVING\x10\x022Y\n" +
+	"\rHealthService\x12H\n" +
+	"\x05Check\x12\x1e.dualsubstrate.v1.CheckRequest\x1a\x1f.dualsubstrate.v1.CheckResponseBNZLgithub.com/berigny/dualsubstrate-commercial/gen/go/proto/dualsubstrate/v1;v1b\x06proto3"
 
 var (
 	file_dualsubstrate_v1_health_proto_rawDescOnce sync.Once
@@ -180,14 +180,14 @@ func file_dualsubstrate_v1_health_proto_rawDescGZIP() []byte {
 var file_dualsubstrate_v1_health_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_dualsubstrate_v1_health_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_dualsubstrate_v1_health_proto_goTypes = []any{
-	(HealthResponse_Status)(0), // 0: dualsubstrate.v1.HealthResponse.Status
-	(*HealthRequest)(nil),      // 1: dualsubstrate.v1.HealthRequest
-	(*HealthResponse)(nil),     // 2: dualsubstrate.v1.HealthResponse
+	(CheckResponse_Status)(0), // 0: dualsubstrate.v1.CheckResponse.Status
+	(*CheckRequest)(nil),      // 1: dualsubstrate.v1.CheckRequest
+	(*CheckResponse)(nil),     // 2: dualsubstrate.v1.CheckResponse
 }
 var file_dualsubstrate_v1_health_proto_depIdxs = []int32{
-	0, // 0: dualsubstrate.v1.HealthResponse.status:type_name -> dualsubstrate.v1.HealthResponse.Status
-	1, // 1: dualsubstrate.v1.Health.Check:input_type -> dualsubstrate.v1.HealthRequest
-	2, // 2: dualsubstrate.v1.Health.Check:output_type -> dualsubstrate.v1.HealthResponse
+	0, // 0: dualsubstrate.v1.CheckResponse.status:type_name -> dualsubstrate.v1.CheckResponse.Status
+	1, // 1: dualsubstrate.v1.HealthService.Check:input_type -> dualsubstrate.v1.CheckRequest
+	2, // 2: dualsubstrate.v1.HealthService.Check:output_type -> dualsubstrate.v1.CheckResponse
 	2, // [2:3] is the sub-list for method output_type
 	1, // [1:2] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name

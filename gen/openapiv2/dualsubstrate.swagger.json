@@ -7,10 +7,10 @@
   },
   "tags": [
     {
-      "name": "DualSubstrate"
+      "name": "DualSubstrateService"
     },
     {
-      "name": "Health"
+      "name": "HealthService"
     }
   ],
   "schemes": [
@@ -25,7 +25,7 @@
   "paths": {
     "/v1/append": {
       "post": {
-        "operationId": "DualSubstrate_Append",
+        "operationId": "DualSubstrateService_Append",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -51,18 +51,18 @@
           }
         ],
         "tags": [
-          "DualSubstrate"
+          "DualSubstrateService"
         ]
       }
     },
     "/v1/rotate": {
       "post": {
-        "operationId": "DualSubstrate_Rotate",
+        "operationId": "DualSubstrateService_Rotate",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1QuaternionResponse"
+              "$ref": "#/definitions/v1RotateResponse"
             }
           },
           "default": {
@@ -78,23 +78,23 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/v1QuaternionRequest"
+              "$ref": "#/definitions/v1RotateRequest"
             }
           }
         ],
         "tags": [
-          "DualSubstrate"
+          "DualSubstrateService"
         ]
       }
     },
     "/v1/scan_prefix": {
       "post": {
-        "operationId": "DualSubstrate_ScanPrefix",
+        "operationId": "DualSubstrateService_ScanPrefix",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1ScanResponse"
+              "$ref": "#/definitions/v1ScanPrefixResponse"
             }
           },
           "default": {
@@ -110,12 +110,12 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/v1ScanRequest"
+              "$ref": "#/definitions/v1ScanPrefixRequest"
             }
           }
         ],
         "tags": [
-          "DualSubstrate"
+          "DualSubstrateService"
         ]
       }
     }
@@ -174,22 +174,22 @@
         }
       }
     },
-    "v1HealthResponse": {
+    "v1CheckResponse": {
       "type": "object",
       "properties": {
         "status": {
-          "$ref": "#/definitions/v1HealthResponseStatus"
+          "$ref": "#/definitions/v1CheckResponseStatus"
         }
       }
     },
-    "v1HealthResponseStatus": {
+    "v1CheckResponseStatus": {
       "type": "string",
       "enum": [
-        "UNKNOWN",
-        "SERVING",
-        "NOT_SERVING"
+        "STATUS_UNKNOWN_UNSPECIFIED",
+        "STATUS_SERVING",
+        "STATUS_NOT_SERVING"
       ],
-      "default": "UNKNOWN"
+      "default": "STATUS_UNKNOWN_UNSPECIFIED"
     },
     "v1LedgerEntry": {
       "type": "object",
@@ -240,7 +240,7 @@
         }
       }
     },
-    "v1QuaternionRequest": {
+    "v1RotateRequest": {
       "type": "object",
       "properties": {
         "q": {
@@ -262,7 +262,7 @@
       },
       "title": "--------- Messages ---------"
     },
-    "v1QuaternionResponse": {
+    "v1RotateResponse": {
       "type": "object",
       "properties": {
         "vec": {
@@ -275,7 +275,7 @@
         }
       }
     },
-    "v1ScanRequest": {
+    "v1ScanPrefixRequest": {
       "type": "object",
       "properties": {
         "pPrefix": {
@@ -292,7 +292,7 @@
         }
       }
     },
-    "v1ScanResponse": {
+    "v1ScanPrefixResponse": {
       "type": "object",
       "properties": {
         "rows": {
