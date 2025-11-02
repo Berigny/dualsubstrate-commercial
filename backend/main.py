@@ -6,8 +6,10 @@ import asyncio
 import json
 import logging
 import os
+import tempfile
 import threading
 import time
+from contextlib import asynccontextmanager
 from io import BytesIO
 from typing import Any, Dict
 
@@ -18,12 +20,39 @@ from fastapi.responses import JSONResponse
 from fastapi.websockets import WebSocketDisconnect
 from openai import OpenAI
 from prometheus_client import make_asgi_app
+from rocksdict import Rdict
+
+from backend.routers import qp_rest
 
 
 LOGGER = logging.getLogger(__name__)
 
 WS_ROUTE = "/ws"
 PCM_ROUTE = "/pcm"
+
+DB_PATH_ENV = os.getenv("DB_PATH", "./data")
+DB_FILE = "ledger.db"
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Open RocksDB on application startup and close it on shutdown.
+    Tests can override DB_PATH via environment to isolate state.
+    """
+
+    db_base = DB_PATH_ENV or tempfile.gettempdir()
+    db_full = os.path.join(db_base, DB_FILE)
+    os.makedirs(os.path.dirname(db_full), exist_ok=True)
+    db = Rdict(db_full)
+    app.state.db = db
+    LOGGER.info("RocksDB opened at %s", db_full)
+    try:
+        yield
+    finally:
+        db.close()
+        LOGGER.info("RocksDB closed")
+
 
 _STATE_LOCK = threading.Lock()
 _STATE: Dict[str, Any] = {
@@ -154,7 +183,7 @@ def _call_salience(
     return data
 
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -165,6 +194,7 @@ app.add_middleware(
 
 metrics_app = make_asgi_app()
 app.mount("/metrics", metrics_app)
+app.include_router(qp_rest.router)
 
 
 @app.get("/health", include_in_schema=False)
@@ -262,7 +292,6 @@ def proxy_exact(key_hex: str) -> JSONResponse:
 
 
 configure_from_env()
-
 
 __all__ = [
     "PCM_ROUTE",
