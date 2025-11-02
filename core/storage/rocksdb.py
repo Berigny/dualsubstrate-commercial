@@ -7,18 +7,157 @@ import os
 import struct
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Optional, Tuple, Any, Callable
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 try:  # pragma: no cover - import guard
     import rocksdict as _rocksdict  # type: ignore[import]
 except ImportError:  # pragma: no cover - optional dependency
     _rocksdict = None  # type: ignore[assignment]
 
-AccessType = getattr(_rocksdict, "AccessType", None)
-Options = getattr(_rocksdict, "Options", None)
-Rdict = getattr(_rocksdict, "Rdict", None)
-MergeOperator = getattr(_rocksdict, "MergeOperator", None)
-WriteBatch = getattr(_rocksdict, "WriteBatch", None)
+_rocksdb = None
+if _rocksdict is None:  # pragma: no cover - optional dependency
+    try:
+        import rocksdb as _rocksdb  # type: ignore[import]
+    except ImportError:
+        _rocksdb = None  # type: ignore[assignment]
+
+_BACKEND: str
+if _rocksdict is not None:
+    _BACKEND = "rocksdict"
+elif _rocksdb is not None:
+    _BACKEND = "python-rocksdb"
+else:
+    _BACKEND = "none"
+
+
+if _BACKEND == "rocksdict":  # pragma: no branch - explicit aliasing
+    AccessType = getattr(_rocksdict, "AccessType", None)
+    Options = getattr(_rocksdict, "Options", None)
+    Rdict = getattr(_rocksdict, "Rdict", None)
+    MergeOperator = getattr(_rocksdict, "MergeOperator", None)
+    WriteBatch = getattr(_rocksdict, "WriteBatch", None)
+else:
+    AccessType = None
+
+    class Options:  # pragma: no cover - thin adapter
+        """Compatibility shim that mirrors ``rocksdict.Options``."""
+
+        def __init__(self) -> None:
+            self._create_if_missing: bool = True
+            self._prefix_spec: Optional[str] = None
+
+        def create_if_missing(self, flag: bool) -> None:
+            self._create_if_missing = bool(flag)
+
+        def set_prefix_extractor(self, spec: str) -> None:
+            self._prefix_spec = spec
+
+        def build(self):
+            opts = _rocksdb.Options()
+            opts.create_if_missing = self._create_if_missing
+            prefix_len = _parse_prefix_length(self._prefix_spec)
+            if prefix_len is not None and hasattr(_rocksdb, "FixedPrefixTransform"):
+                opts.prefix_extractor = _rocksdb.FixedPrefixTransform(prefix_len)
+            return opts
+
+    class MergeOperator:  # pragma: no cover - adapter for merge semantics
+        """Minimal wrapper storing the merge callback for later use."""
+
+        def __init__(self, *, merge_fn: Callable[[Optional[bytes], Iterable[bytes]], bytes], name: str = "merge") -> None:
+            self.merge_fn = merge_fn
+            self.name = name
+
+    class PyRocksCompatDB:  # pragma: no cover - behaviour exercised via tests
+        """Lightweight facade that mimics the subset of ``rocksdict.Rdict`` we rely on."""
+
+        _CF_SEPARATOR = b"\x00"
+
+        def __init__(
+            self,
+            path: str,
+            *,
+            options: Options | None = None,
+            column_families: Iterable[str] | None = None,
+            create_if_missing: bool = True,
+            prefix_extractor: Optional[str] = None,
+        ) -> None:
+            opts = options.build() if isinstance(options, Options) else _rocksdb.Options()
+            opts.create_if_missing = getattr(opts, "create_if_missing", True) and create_if_missing
+            if prefix_extractor and not isinstance(options, Options):
+                prefix_len = _parse_prefix_length(prefix_extractor)
+                if prefix_len is not None and hasattr(_rocksdb, "FixedPrefixTransform"):
+                    opts.prefix_extractor = _rocksdb.FixedPrefixTransform(prefix_len)
+            self._db = _rocksdb.DB(str(path), opts)
+            self._merge_operators: Dict[str, Callable[[Optional[bytes], Iterable[bytes]], bytes]] = {}
+            self._column_families = tuple(column_families or DEFAULT_COLUMN_FAMILIES)
+
+        # Mapping protocol -------------------------------------------------
+        def __setitem__(self, key: bytes, value: bytes) -> None:
+            self.put(key, value)
+
+        def __getitem__(self, key: bytes) -> bytes:
+            result = self.get(key)
+            if result is None:
+                raise KeyError(key)
+            return result
+
+        # Basic primitives -------------------------------------------------
+        def put(self, key: bytes | Tuple[str, bytes], value: bytes) -> None:
+            cf, user_key = self._normalise_key(key)
+            self._db.put(self._encode_key(cf, user_key), value)
+
+        def get(self, key: bytes | Tuple[str, bytes]) -> Optional[bytes]:
+            cf, user_key = self._normalise_key(key)
+            return self._db.get(self._encode_key(cf, user_key))
+
+        def delete(self, key: bytes | Tuple[str, bytes]) -> None:
+            cf, user_key = self._normalise_key(key)
+            self._db.delete(self._encode_key(cf, user_key))
+
+        # Iteration --------------------------------------------------------
+        def items(self):  # noqa: D401 - mimic ``dict.items`` signature
+            """Yield ``(key, value)`` pairs stored in the database."""
+
+            it = self._db.iteritems()
+            it.seek_to_first()
+            for raw_key, value in it:
+                yield self._decode_key(raw_key), value
+
+        # Merge support ----------------------------------------------------
+        def set_merge_operator(self, column_family: str, operator: MergeOperator) -> None:
+            self._merge_operators[column_family] = operator.merge_fn
+
+        def merge(self, key: Tuple[str, bytes], value: bytes) -> None:
+            cf, user_key = self._normalise_key(key)
+            merge_fn = self._merge_operators.get(cf)
+            if merge_fn is None:
+                raise RuntimeError(f"no merge operator registered for column family '{cf}'")
+            existing = self.get((cf, user_key))
+            merged = merge_fn(existing, [value])
+            self.put((cf, user_key), merged)
+
+        def close(self) -> None:
+            del self._db
+
+        # Internal helpers -------------------------------------------------
+        def _normalise_key(self, key: bytes | Tuple[str, bytes]) -> Tuple[str, bytes]:
+            if isinstance(key, tuple):
+                cf, user_key = key
+                return cf, user_key
+            return "default", key
+
+        def _encode_key(self, column_family: str, user_key: bytes) -> bytes:
+            return column_family.encode("utf-8") + self._CF_SEPARATOR + user_key
+
+        def _decode_key(self, raw_key: bytes) -> bytes:
+            if self._CF_SEPARATOR in raw_key:
+                _, user_key = raw_key.split(self._CF_SEPARATOR, 1)
+                return user_key
+            return raw_key
+
+    Rdict = PyRocksCompatDB
+    MergeOperator = MergeOperator
+    WriteBatch = None
 
 
 ColumnFamily = str
@@ -38,9 +177,9 @@ DEFAULT_COLUMN_FAMILIES: Tuple[ColumnFamily, ...] = (
 
 
 def rocksdb_available() -> bool:
-    """Return True when the optional ``rocksdict`` dependency is importable."""
+    """Return True when either ``rocksdict`` or ``python-rocksdb`` is importable."""
 
-    return Rdict is not None
+    return _BACKEND != "none"
 
 
 @dataclass(frozen=True)
@@ -77,7 +216,7 @@ class RocksLedgerStorage:
 
     def __init__(self, db: "Rdict") -> None:
         if not rocksdb_available():  # pragma: no cover - defensive guard
-            raise RuntimeError("rocksdict must be installed to use RocksLedgerStorage")
+            raise RuntimeError("A RocksDB binding must be installed to use RocksLedgerStorage")
 
         self._db = db
 
@@ -117,7 +256,9 @@ class RocksLedgerStorage:
         self._db.put(keys.bridge(), bridge_payload)
         self._db.put(keys.index_prefix(p_prefix), b"")
         self._db.put(keys.index_hash(r_hash), b"")
-        self._db.put(keys.ethics(), ethics_delta)
+        existing_ethics = getattr(self._db, "get", lambda *_: None)(keys.ethics())
+        merged = _merge_ethics(existing_ethics, [ethics_delta])
+        self._db.put(keys.ethics(), merged)
 
 
 def to_big_endian_timestamp(timestamp: int) -> bytes:
@@ -181,6 +322,22 @@ def _encode_ethics(value: dict) -> bytes:
     return json.dumps(value, separators=(",", ":"), sort_keys=True).encode("utf-8")
 
 
+def _parse_prefix_length(spec: Optional[str]) -> Optional[int]:
+    if not spec:
+        return None
+    if ":" in spec:
+        prefix, _, length = spec.partition(":")
+        if prefix in {"fixed", "fixed_prefix"}:
+            try:
+                return int(length)
+            except ValueError:
+                return None
+    try:
+        return int(spec)
+    except (TypeError, ValueError):
+        return None
+
+
 def open_rocksdb(
     path: os.PathLike[str] | str,
     *,
@@ -192,8 +349,8 @@ def open_rocksdb(
 
     if not rocksdb_available():  # pragma: no cover - dependency guard
         raise RuntimeError(
-            "rocksdict is required to open RocksDB storage. "
-            "Install it with `pip install rocksdict`."
+            "A RocksDB binding is required to open RocksDB storage. "
+            "Install it with `pip install rocksdict` or `pip install python-rocksdb`."
         )
 
     db_path = Path(path)
@@ -205,11 +362,20 @@ def open_rocksdb(
     if options is not None and prefix_extractor and hasattr(options, "set_prefix_extractor"):
         options.set_prefix_extractor(prefix_extractor)
 
-    kwargs: dict[str, Any] = {}
-    if options is not None:
-        kwargs["options"] = options
+    if _BACKEND == "rocksdict":
+        kwargs: Dict[str, Any] = {}
+        if options is not None:
+            kwargs["options"] = options
+        db = Rdict(str(db_path), **kwargs)
+    else:
+        db = Rdict(
+            str(db_path),
+            options=options,
+            column_families=tuple(column_families or DEFAULT_COLUMN_FAMILIES),
+            create_if_missing=create_if_missing,
+            prefix_extractor=prefix_extractor,
+        )
 
-    db = Rdict(str(db_path), **kwargs)
     if MergeOperator is not None and hasattr(db, "set_merge_operator"):
         db.set_merge_operator("ethics", MergeOperator(merge_fn=_merge_ethics))
     return RocksLedgerStorage(db)

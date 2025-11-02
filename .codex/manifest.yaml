@@ -1,0 +1,81 @@
+preinstall:
+  - name: install-rocksdb-deps
+    run: |
+      apt-get update && apt-get install -y \
+        librocksdb-dev build-essential python3-dev cmake
+      pip install --upgrade pip
+      pip install rocksdict || pip install python-rocksdb
+  - name: verify-rocksdb
+    run: |
+      python - <<'PY'
+import importlib
+for candidate in ("rocksdict", "rocksdb"):
+    try:
+        importlib.import_module(candidate)
+        print(f"✅ RocksDB binding available ({candidate})")
+        break
+    except ImportError:
+        continue
+else:
+    raise SystemExit("❌ No RocksDB binding is importable")
+PY
+env:
+  REPO_ROOT: /workspace/dualsubstrate-commercial
+  ROCKS_PATH: tmpdb
+  OPENAI_API_KEY: "<set_in_codex_secret>"
+  LOG_LEVEL: info
+  DS_GATEWAY_API_KEY: local-dev
+verify:
+  - run: |
+      python - <<'PY'
+import importlib
+import os
+
+module = None
+for name in ("rocksdict", "rocksdb"):
+    try:
+        module = importlib.import_module(name)
+        break
+    except ImportError:
+        continue
+if module is None:
+    raise SystemExit("❌ No RocksDB binding is importable")
+print('Rocks path:', os.getenv('ROCKS_PATH'))
+PY
+  - run: |
+      python - <<'PY'
+import importlib
+import os
+
+binding = None
+for candidate in ("rocksdict", "rocksdb"):
+    try:
+        binding = importlib.import_module(candidate)
+        break
+    except ImportError:
+        continue
+if binding is None:
+    raise SystemExit("❌ No RocksDB binding found for verification")
+
+path = os.getenv('ROCKS_PATH', 'tmpdb')
+if hasattr(binding, "Rdict"):
+    opts = None
+    if hasattr(binding, "Options"):
+        opts = binding.Options()
+        if hasattr(opts, "create_if_missing"):
+            opts.create_if_missing(True)
+    kwargs = {}
+    if opts is not None:
+        kwargs["options"] = opts
+    db = binding.Rdict(path, **kwargs)
+elif hasattr(binding, "DB"):
+    opts = binding.Options()
+    opts.create_if_missing = True
+    db = binding.DB(path, opts)
+else:
+    raise SystemExit("❌ Unsupported RocksDB binding")
+
+db.put(b'test', b'ok')
+assert db.get(b'test') == b'ok', 'RocksDB write/read failed'
+print("✅ RocksDB functional")
+PY
