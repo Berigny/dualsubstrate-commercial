@@ -5,6 +5,10 @@ on:
     tags:
       - "sdk-v*"
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   build-and-publish:
     name: Build & Publish to PyPI
