@@ -10,14 +10,31 @@ on:
       - "Makefile"
   pull_request:
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   build:
     permissions:
       contents: read
       packages: read
     runs-on: ubuntu-latest
+    env:
+      FLY_ACCESS_TOKEN: ${{ secrets.FLY_ACCESS_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Login to GitHub Container Registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | \
+            docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Login to Fly.io registry
+        if: ${{ env.FLY_ACCESS_TOKEN != '' }}
+        run: |
+          echo "${FLY_ACCESS_TOKEN}" | \
+            docker login registry.fly.io -u x --password-stdin
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
