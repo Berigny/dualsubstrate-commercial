@@ -3,7 +3,6 @@ import asyncio
 import logging
 import os
 import sys
-import types
 from contextlib import suppress
 from pathlib import Path
 from time import perf_counter
@@ -12,45 +11,10 @@ from typing import Iterable, Optional
 import grpc
 from grpc_health.v1 import health, health_pb2, health_pb2_grpc
 from grpc_reflection.v1alpha import reflection
-from google.protobuf import descriptor_pb2
 
 GEN_PATH = Path(__file__).resolve().parent / "gen"
 if str(GEN_PATH) not in sys.path:
     sys.path.insert(0, str(GEN_PATH))
-
-
-def _inject_openapiv2_placeholder() -> None:
-    """Inject a minimal placeholder module for protoc-gen-openapiv2 annotations."""
-
-    pkg_root = "protoc_gen_openapiv2"
-    module_name = f"{pkg_root}.options.annotations_pb2"
-
-    if module_name in sys.modules:
-        return
-
-    file_proto = descriptor_pb2.FileDescriptorProto()
-    file_proto.name = "protoc-gen-openapiv2/options/annotations.proto"
-    file_proto.package = "protoc_gen_openapiv2.options"
-
-    module = types.ModuleType(module_name)
-    module.DESCRIPTOR = file_proto  # type: ignore[attr-defined]
-
-    root_mod = sys.modules.get(pkg_root)
-    if root_mod is None:
-        root_mod = types.ModuleType(pkg_root)
-        sys.modules[pkg_root] = root_mod
-    options_mod = sys.modules.get(f"{pkg_root}.options")
-    if options_mod is None:
-        options_mod = types.ModuleType(f"{pkg_root}.options")
-        sys.modules[f"{pkg_root}.options"] = options_mod
-
-    sys.modules[module_name] = module
-    setattr(root_mod, "options", options_mod)
-    setattr(options_mod, "annotations_pb2", module)
-
-
-_inject_openapiv2_placeholder()
-
 from api.gen.dualsubstrate.v1 import health_pb2 as ds_health_pb
 from api.gen.dualsubstrate.v1 import health_pb2_grpc as ds_health_rpc
 from api.gen.dualsubstrate.v1 import ledger_pb2 as pb
