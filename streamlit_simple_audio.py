@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import time
 from io import BytesIO
-from typing import Optional
+from typing import Dict, Optional
 
 import requests
 import streamlit as st
@@ -31,6 +31,20 @@ def _default_fastapi_root() -> str:
 
 
 FASTAPI_ROOT = _default_fastapi_root()
+API_HEADERS: Dict[str, str] = {}
+
+
+def _default_dualsubstrate_key() -> str:
+    secret_value = ""
+    try:
+        secret_value = _clean_secret(st.secrets["DUALSUBSTRATE_API_KEY"])
+    except Exception:
+        secret_value = ""
+
+    if secret_value:
+        return secret_value
+
+    return _clean_secret(os.getenv("DUALSUBSTRATE_API_KEY", ""))
 
 st.set_page_config(page_title="Dual-Substrate Audio Memory", layout="centered")
 st.title("🎙️ Dual-Substrate Audio Memory Demo")
@@ -39,13 +53,13 @@ st.title("🎙️ Dual-Substrate Audio Memory Demo")
 def qp_put(key_hex: str, value: str) -> None:
     url = f"{FASTAPI_ROOT}/qp/{key_hex}"
     payload = {"value": value}
-    response = requests.post(url, json=payload, timeout=10)
+    response = requests.post(url, json=payload, headers=API_HEADERS, timeout=10)
     response.raise_for_status()
 
 
 def qp_get(key_hex: str) -> Optional[str]:
     url = f"{FASTAPI_ROOT}/qp/{key_hex}"
-    response = requests.get(url, timeout=10)
+    response = requests.get(url, headers=API_HEADERS, timeout=10)
     if response.status_code == 404:
         return None
     response.raise_for_status()
@@ -77,6 +91,18 @@ with st.sidebar:
     if not FASTAPI_ROOT:
         st.error("FASTAPI root required to reach the Dual-Substrate backend.")
         st.stop()
+
+    dualsubstrate_input = st.text_input(
+        "DualSubstrate API key",
+        value=_default_dualsubstrate_key(),
+        type="password",
+    )
+    dualsubstrate_key = _clean_secret(dualsubstrate_input)
+    if not dualsubstrate_key:
+        st.error("DualSubstrate API key required to call the backend.")
+        st.stop()
+
+    API_HEADERS = {"Authorization": f"Bearer {dualsubstrate_key}"}
 
     minutes = st.selectbox("Conversation length (minutes)", [1, 2, 3, 5, 8, 13, 21, 34, 55])
     quarter = minutes * 15  # seconds

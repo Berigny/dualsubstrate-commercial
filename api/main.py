@@ -13,6 +13,9 @@ import flow_rule  # our Rust wheel
 from core import core as core_rs  # PyO3 bindings (quaternion pack/rotate)
 from core.ledger import Ledger, PRIME_ARRAY  # the RocksDB wrapper we wrote earlier
 from deps import require_key, limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi import _rate_limit_exceeded_handler
 from s1_s2_memory import S1Salience, deterministic_key
 
 # ---------- flow-rule bridge ----------
@@ -141,6 +144,9 @@ async def lifespan(app: FastAPI):
     app.state.ledger.close()
 
 app = FastAPI(title="DualSubstrate – Flow-Rule Ledger", version="0.3.0", lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 SALIENT_THRESHOLD = 0.7
 
 
