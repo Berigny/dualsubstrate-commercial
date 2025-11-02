@@ -2,7 +2,7 @@ app = "dualsubstrate-commercial"
 primary_region = "syd"
 
 [build]
-  image = "ghcr.io/berigny/dualsubstrate:latest"
+  dockerfile = "Dockerfile"
 
 [env]
   ROCKS_PATH = "/data/ledger"

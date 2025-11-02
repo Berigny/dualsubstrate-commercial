@@ -2,6 +2,7 @@ services:
   dualsubstrate:
     build: .
     image: ${DOCKER_IMAGE:-ghcr.io/berigny/dualsubstrate:latest}
+    pull_policy: build
     ports:
       - "${HOST_API_PORT:-8080}:8080"
       - "${HOST_UI_PORT:-7860}:7860"
