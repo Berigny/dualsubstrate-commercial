@@ -1,8 +1,8 @@
-app = "dualsubstrate-demo"
+app = "dualsubstrate-commercial"
 primary_region = "syd"
 
 [build]
-  image = "ghcr.io/berigny/dualsubstrate:latest"
+  dockerfile = "Dockerfile"
 
 [env]
   ROCKS_PATH = "/data/ledger"
@@ -19,6 +19,14 @@ primary_region = "syd"
   processes = ["app"]
   auto_stop_machines = false
   auto_start_machines = false
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
 
   [services.concurrency]
     soft_limit = 20
