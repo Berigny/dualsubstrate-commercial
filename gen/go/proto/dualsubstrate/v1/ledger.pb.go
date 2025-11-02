@@ -24,7 +24,7 @@ const (
 )
 
 // --------- Messages ---------
-type QuaternionRequest struct {
+type RotateRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// q = [w, x, y, z] or your chosen convention; keep length=4
 	Q []float32 `protobuf:"fixed32,1,rep,packed,name=q,proto3" json:"q,omitempty"`
@@ -34,20 +34,20 @@ type QuaternionRequest struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *QuaternionRequest) Reset() {
-	*x = QuaternionRequest{}
+func (x *RotateRequest) Reset() {
+	*x = RotateRequest{}
 	mi := &file_dualsubstrate_v1_ledger_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *QuaternionRequest) String() string {
+func (x *RotateRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*QuaternionRequest) ProtoMessage() {}
+func (*RotateRequest) ProtoMessage() {}
 
-func (x *QuaternionRequest) ProtoReflect() protoreflect.Message {
+func (x *RotateRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_dualsubstrate_v1_ledger_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -59,26 +59,26 @@ func (x *QuaternionRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use QuaternionRequest.ProtoReflect.Descriptor instead.
-func (*QuaternionRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use RotateRequest.ProtoReflect.Descriptor instead.
+func (*RotateRequest) Descriptor() ([]byte, []int) {
 	return file_dualsubstrate_v1_ledger_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *QuaternionRequest) GetQ() []float32 {
+func (x *RotateRequest) GetQ() []float32 {
 	if x != nil {
 		return x.Q
 	}
 	return nil
 }
 
-func (x *QuaternionRequest) GetVec() []float32 {
+func (x *RotateRequest) GetVec() []float32 {
 	if x != nil {
 		return x.Vec
 	}
 	return nil
 }
 
-type QuaternionResponse struct {
+type RotateResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// rotated vector (len=3)
 	Vec           []float32 `protobuf:"fixed32,1,rep,packed,name=vec,proto3" json:"vec,omitempty"`
@@ -86,20 +86,20 @@ type QuaternionResponse struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *QuaternionResponse) Reset() {
-	*x = QuaternionResponse{}
+func (x *RotateResponse) Reset() {
+	*x = RotateResponse{}
 	mi := &file_dualsubstrate_v1_ledger_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *QuaternionResponse) String() string {
+func (x *RotateResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*QuaternionResponse) ProtoMessage() {}
+func (*RotateResponse) ProtoMessage() {}
 
-func (x *QuaternionResponse) ProtoReflect() protoreflect.Message {
+func (x *RotateResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_dualsubstrate_v1_ledger_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -111,12 +111,12 @@ func (x *QuaternionResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use QuaternionResponse.ProtoReflect.Descriptor instead.
-func (*QuaternionResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use RotateResponse.ProtoReflect.Descriptor instead.
+func (*RotateResponse) Descriptor() ([]byte, []int) {
 	return file_dualsubstrate_v1_ledger_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *QuaternionResponse) GetVec() []float32 {
+func (x *RotateResponse) GetVec() []float32 {
 	if x != nil {
 		return x.Vec
 	}
@@ -304,7 +304,7 @@ func (x *AppendResponse) GetCommitId() string {
 	return ""
 }
 
-type ScanRequest struct {
+type ScanPrefixRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	PPrefix       []byte                 `protobuf:"bytes,1,opt,name=p_prefix,json=pPrefix,proto3" json:"p_prefix,omitempty"` // raw prefix (not hex string)
 	Limit         uint32                 `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
@@ -313,20 +313,20 @@ type ScanRequest struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ScanRequest) Reset() {
-	*x = ScanRequest{}
+func (x *ScanPrefixRequest) Reset() {
+	*x = ScanPrefixRequest{}
 	mi := &file_dualsubstrate_v1_ledger_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ScanRequest) String() string {
+func (x *ScanPrefixRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ScanRequest) ProtoMessage() {}
+func (*ScanPrefixRequest) ProtoMessage() {}
 
-func (x *ScanRequest) ProtoReflect() protoreflect.Message {
+func (x *ScanPrefixRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_dualsubstrate_v1_ledger_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -338,26 +338,26 @@ func (x *ScanRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ScanRequest.ProtoReflect.Descriptor instead.
-func (*ScanRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use ScanPrefixRequest.ProtoReflect.Descriptor instead.
+func (*ScanPrefixRequest) Descriptor() ([]byte, []int) {
 	return file_dualsubstrate_v1_ledger_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *ScanRequest) GetPPrefix() []byte {
+func (x *ScanPrefixRequest) GetPPrefix() []byte {
 	if x != nil {
 		return x.PPrefix
 	}
 	return nil
 }
 
-func (x *ScanRequest) GetLimit() uint32 {
+func (x *ScanPrefixRequest) GetLimit() uint32 {
 	if x != nil {
 		return x.Limit
 	}
 	return 0
 }
 
-func (x *ScanRequest) GetReverse() bool {
+func (x *ScanPrefixRequest) GetReverse() bool {
 	if x != nil {
 		return x.Reverse
 	}
@@ -432,27 +432,27 @@ func (x *LedgerRow) GetP() []byte {
 	return nil
 }
 
-type ScanResponse struct {
+type ScanPrefixResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Rows          []*LedgerRow           `protobuf:"bytes,1,rep,name=rows,proto3" json:"rows,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ScanResponse) Reset() {
-	*x = ScanResponse{}
+func (x *ScanPrefixResponse) Reset() {
+	*x = ScanPrefixResponse{}
 	mi := &file_dualsubstrate_v1_ledger_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ScanResponse) String() string {
+func (x *ScanPrefixResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ScanResponse) ProtoMessage() {}
+func (*ScanPrefixResponse) ProtoMessage() {}
 
-func (x *ScanResponse) ProtoReflect() protoreflect.Message {
+func (x *ScanPrefixResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_dualsubstrate_v1_ledger_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -464,12 +464,12 @@ func (x *ScanResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ScanResponse.ProtoReflect.Descriptor instead.
-func (*ScanResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use ScanPrefixResponse.ProtoReflect.Descriptor instead.
+func (*ScanPrefixResponse) Descriptor() ([]byte, []int) {
 	return file_dualsubstrate_v1_ledger_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *ScanResponse) GetRows() []*LedgerRow {
+func (x *ScanPrefixResponse) GetRows() []*LedgerRow {
 	if x != nil {
 		return x.Rows
 	}
@@ -480,11 +480,11 @@ var File_dualsubstrate_v1_ledger_proto protoreflect.FileDescriptor
 
 const file_dualsubstrate_v1_ledger_proto_rawDesc = "" +
 	"\n" +
-	"\x1ddualsubstrate/v1/ledger.proto\x12\x10dualsubstrate.v1\x1a\x1cgoogle/api/annotations.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\"3\n" +
-	"\x11QuaternionRequest\x12\f\n" +
+	"\x1ddualsubstrate/v1/ledger.proto\x12\x10dualsubstrate.v1\x1a\x1cgoogle/api/annotations.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\"/\n" +
+	"\rRotateRequest\x12\f\n" +
 	"\x01q\x18\x01 \x03(\x02R\x01q\x12\x10\n" +
-	"\x03vec\x18\x02 \x03(\x02R\x03vec\"&\n" +
-	"\x12QuaternionResponse\x12\x10\n" +
+	"\x03vec\x18\x02 \x03(\x02R\x03vec\"\"\n" +
+	"\x0eRotateResponse\x12\x10\n" +
 	"\x03vec\x18\x01 \x03(\x02R\x03vec\"\xc7\x01\n" +
 	"\vLedgerEntry\x12\x16\n" +
 	"\x06entity\x18\x01 \x01(\tR\x06entity\x12\f\n" +
@@ -500,8 +500,8 @@ const file_dualsubstrate_v1_ledger_proto_rawDesc = "" +
 	"\bidem_key\x18\x02 \x01(\tR\aidemKey\"=\n" +
 	"\x0eAppendResponse\x12\x0e\n" +
 	"\x02ts\x18\x01 \x01(\x04R\x02ts\x12\x1b\n" +
-	"\tcommit_id\x18\x02 \x01(\tR\bcommitId\"X\n" +
-	"\vScanRequest\x12\x19\n" +
+	"\tcommit_id\x18\x02 \x01(\tR\bcommitId\"^\n" +
+	"\x11ScanPrefixRequest\x12\x19\n" +
 	"\bp_prefix\x18\x01 \x01(\fR\apPrefix\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\rR\x05limit\x12\x18\n" +
 	"\areverse\x18\x03 \x01(\bR\areverse\"O\n" +
@@ -509,16 +509,16 @@ const file_dualsubstrate_v1_ledger_proto_rawDesc = "" +
 	"\x06entity\x18\x01 \x01(\tR\x06entity\x12\x0e\n" +
 	"\x02ts\x18\x02 \x01(\x04R\x02ts\x12\f\n" +
 	"\x01r\x18\x03 \x01(\fR\x01r\x12\f\n" +
-	"\x01p\x18\x04 \x01(\fR\x01p\"?\n" +
-	"\fScanResponse\x12/\n" +
-	"\x04rows\x18\x01 \x03(\v2\x1b.dualsubstrate.v1.LedgerRowR\x04rows2\xc8\x02\n" +
-	"\rDualSubstrate\x12j\n" +
-	"\x06Rotate\x12#.dualsubstrate.v1.QuaternionRequest\x1a$.dualsubstrate.v1.QuaternionResponse\"\x15\x82\xd3\xe4\x93\x02\x0f:\x01*\"\n" +
+	"\x01p\x18\x04 \x01(\fR\x01p\"E\n" +
+	"\x12ScanPrefixResponse\x12/\n" +
+	"\x04rows\x18\x01 \x03(\v2\x1b.dualsubstrate.v1.LedgerRowR\x04rows2\xd3\x02\n" +
+	"\x14DualSubstrateService\x12b\n" +
+	"\x06Rotate\x12\x1f.dualsubstrate.v1.RotateRequest\x1a .dualsubstrate.v1.RotateResponse\"\x15\x82\xd3\xe4\x93\x02\x0f:\x01*\"\n" +
 	"/v1/rotate\x12b\n" +
 	"\x06Append\x12\x1f.dualsubstrate.v1.AppendRequest\x1a .dualsubstrate.v1.AppendResponse\"\x15\x82\xd3\xe4\x93\x02\x0f:\x01*\"\n" +
-	"/v1/append\x12g\n" +
+	"/v1/append\x12s\n" +
 	"\n" +
-	"ScanPrefix\x12\x1d.dualsubstrate.v1.ScanRequest\x1a\x1e.dualsubstrate.v1.ScanResponse\"\x1a\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/scan_prefixB\xb2\x01\x92Aa\x128\n" +
+	"ScanPrefix\x12#.dualsubstrate.v1.ScanPrefixRequest\x1a$.dualsubstrate.v1.ScanPrefixResponse\"\x1a\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/scan_prefixB\xb2\x01\x92Aa\x128\n" +
 	"\x11DualSubstrate API\x12\x1ep-adic quaternion memory layer2\x031.0*\x01\x022\x10application/json:\x10application/jsonZLgithub.com/berigny/dualsubstrate-commercial/gen/go/proto/dualsubstrate/v1;v1b\x06proto3"
 
 var (
@@ -535,26 +535,26 @@ func file_dualsubstrate_v1_ledger_proto_rawDescGZIP() []byte {
 
 var file_dualsubstrate_v1_ledger_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_dualsubstrate_v1_ledger_proto_goTypes = []any{
-	(*QuaternionRequest)(nil),  // 0: dualsubstrate.v1.QuaternionRequest
-	(*QuaternionResponse)(nil), // 1: dualsubstrate.v1.QuaternionResponse
+	(*RotateRequest)(nil),      // 0: dualsubstrate.v1.RotateRequest
+	(*RotateResponse)(nil),     // 1: dualsubstrate.v1.RotateResponse
 	(*LedgerEntry)(nil),        // 2: dualsubstrate.v1.LedgerEntry
 	(*AppendRequest)(nil),      // 3: dualsubstrate.v1.AppendRequest
 	(*AppendResponse)(nil),     // 4: dualsubstrate.v1.AppendResponse
-	(*ScanRequest)(nil),        // 5: dualsubstrate.v1.ScanRequest
+	(*ScanPrefixRequest)(nil),  // 5: dualsubstrate.v1.ScanPrefixRequest
 	(*LedgerRow)(nil),          // 6: dualsubstrate.v1.LedgerRow
-	(*ScanResponse)(nil),       // 7: dualsubstrate.v1.ScanResponse
+	(*ScanPrefixResponse)(nil), // 7: dualsubstrate.v1.ScanPrefixResponse
 	nil,                        // 8: dualsubstrate.v1.LedgerEntry.MetaEntry
 }
 var file_dualsubstrate_v1_ledger_proto_depIdxs = []int32{
 	8, // 0: dualsubstrate.v1.LedgerEntry.meta:type_name -> dualsubstrate.v1.LedgerEntry.MetaEntry
 	2, // 1: dualsubstrate.v1.AppendRequest.entry:type_name -> dualsubstrate.v1.LedgerEntry
-	6, // 2: dualsubstrate.v1.ScanResponse.rows:type_name -> dualsubstrate.v1.LedgerRow
-	0, // 3: dualsubstrate.v1.DualSubstrate.Rotate:input_type -> dualsubstrate.v1.QuaternionRequest
-	3, // 4: dualsubstrate.v1.DualSubstrate.Append:input_type -> dualsubstrate.v1.AppendRequest
-	5, // 5: dualsubstrate.v1.DualSubstrate.ScanPrefix:input_type -> dualsubstrate.v1.ScanRequest
-	1, // 6: dualsubstrate.v1.DualSubstrate.Rotate:output_type -> dualsubstrate.v1.QuaternionResponse
-	4, // 7: dualsubstrate.v1.DualSubstrate.Append:output_type -> dualsubstrate.v1.AppendResponse
-	7, // 8: dualsubstrate.v1.DualSubstrate.ScanPrefix:output_type -> dualsubstrate.v1.ScanResponse
+	6, // 2: dualsubstrate.v1.ScanPrefixResponse.rows:type_name -> dualsubstrate.v1.LedgerRow
+	0, // 3: dualsubstrate.v1.DualSubstrateService.Rotate:input_type -> dualsubstrate.v1.RotateRequest
+	3, // 4: dualsubstrate.v1.DualSubstrateService.Append:input_type -> dualsubstrate.v1.AppendRequest
+	5, // 5: dualsubstrate.v1.DualSubstrateService.ScanPrefix:input_type -> dualsubstrate.v1.ScanPrefixRequest
+	1, // 6: dualsubstrate.v1.DualSubstrateService.Rotate:output_type -> dualsubstrate.v1.RotateResponse
+	4, // 7: dualsubstrate.v1.DualSubstrateService.Append:output_type -> dualsubstrate.v1.AppendResponse
+	7, // 8: dualsubstrate.v1.DualSubstrateService.ScanPrefix:output_type -> dualsubstrate.v1.ScanPrefixResponse
 	6, // [6:9] is the sub-list for method output_type
 	3, // [3:6] is the sub-list for method input_type
 	3, // [3:3] is the sub-list for extension type_name

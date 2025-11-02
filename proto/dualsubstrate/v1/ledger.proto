@@ -19,14 +19,14 @@ option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
 };
 
 // --------- Messages ---------
-message QuaternionRequest {
+message RotateRequest {
   // q = [w, x, y, z] or your chosen convention; keep length=4
   repeated float q = 1;
   // optional vector to rotate (len=3). If omitted, server uses a default basis.
   repeated float vec = 2;
 }
 
-message QuaternionResponse {
+message RotateResponse {
   // rotated vector (len=3)
   repeated float vec = 1;
 }
@@ -50,7 +50,7 @@ message AppendResponse {
   string commit_id = 2; // e.g., entity/ts or your batch anchor id
 }
 
-message ScanRequest {
+message ScanPrefixRequest {
   bytes p_prefix = 1; // raw prefix (not hex string)
   uint32 limit = 2;
   bool reverse = 3;
@@ -63,13 +63,13 @@ message LedgerRow {
   bytes p = 4;
 }
 
-message ScanResponse {
+message ScanPrefixResponse {
   repeated LedgerRow rows = 1;
 }
 
 // --------- Service ---------
-service DualSubstrate {
-  rpc Rotate(QuaternionRequest) returns (QuaternionResponse) {
+service DualSubstrateService {
+  rpc Rotate(RotateRequest) returns (RotateResponse) {
     option (google.api.http) = {
       post: "/v1/rotate"
       body: "*"
@@ -81,7 +81,7 @@ service DualSubstrate {
       body: "*"
     };
   }
-  rpc ScanPrefix(ScanRequest) returns (ScanResponse) {
+  rpc ScanPrefix(ScanPrefixRequest) returns (ScanPrefixResponse) {
     option (google.api.http) = {
       post: "/v1/scan_prefix"
       body: "*"

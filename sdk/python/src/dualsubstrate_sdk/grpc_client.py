@@ -20,22 +20,22 @@ except ImportError:  # fall back to repository layout
 class LedgerClient:
     def __init__(self, target: str = "localhost:50051"):
         self.channel = grpc.insecure_channel(target)
-        self.stub = rpc.DualSubstrateStub(self.channel)
-        self.health_stub = ds_health_rpc.HealthStub(self.channel)
+        self.stub = rpc.DualSubstrateServiceStub(self.channel)
+        self.health_stub = ds_health_rpc.HealthServiceStub(self.channel)
         self.grpc_health_stub = grpc_health_rpc.HealthStub(self.channel)
 
     def health(self) -> str:
-        response = self.health_stub.Check(ds_health_pb.HealthRequest())
-        return ds_health_pb.HealthResponse.Status.Name(response.status)
+        response = self.health_stub.Check(ds_health_pb.CheckRequest())
+        return ds_health_pb.CheckResponse.Status.Name(response.status)
 
-    def grpc_health(self, service: str = "dualsubstrate.v1.DualSubstrate") -> str:
+    def grpc_health(self, service: str = "dualsubstrate.v1.DualSubstrateService") -> str:
         response = self.grpc_health_stub.Check(
             grpc_health_pb2.HealthCheckRequest(service=service)
         )
         return grpc_health_pb2.HealthCheckResponse.ServingStatus.Name(response.status)
 
     def rotate(self, q, vec=None):
-        req = pb.QuaternionRequest(q=q, vec=vec or [])
+        req = pb.RotateRequest(q=q, vec=vec or [])
         return list(self.stub.Rotate(req).vec)
 
     def append(
@@ -52,7 +52,9 @@ class LedgerClient:
         return response.commit_id
 
     def scan_prefix(self, prefix: bytes, limit: int = 50, reverse: bool = False):
-        resp = self.stub.ScanPrefix(pb.ScanRequest(p_prefix=prefix, limit=limit, reverse=reverse))
+        resp = self.stub.ScanPrefix(
+            pb.ScanPrefixRequest(p_prefix=prefix, limit=limit, reverse=reverse)
+        )
         return [(row.entity, row.ts, bytes(row.r), bytes(row.p)) for row in resp.rows]
 
 
