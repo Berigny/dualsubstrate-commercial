@@ -44,33 +44,40 @@ def _ensure_openapiv2_annotations() -> None:
             "grpcio-tools must be installed to load OpenAPI annotations"
         ) from exc
 
-    try:
-        proto_bytes = pkgutil.get_data(
-            "grpc_tools",
-            "_proto/protoc-gen-openapiv2/options/annotations.proto",
-        )
-    except ModuleNotFoundError as exc:  # pragma: no cover - misconfigured runtime
+    candidates = [
+        ("grpc_tools", "_proto/protoc-gen-openapiv2/options/annotations.binpb", "bin"),
+        ("grpc_tools", "_proto/protoc-gen-openapiv2/options/annotations.pb", "bin"),
+        ("grpc_tools", "_proto/protoc-gen-openapiv2/options/annotations.proto", "text"),
+    ]
+    descriptor = None
+    serialized_bytes: bytes | None = None
+    for package, resource, resource_type in candidates:
+        try:
+            data = pkgutil.get_data(package, resource)
+        except (ModuleNotFoundError, OSError):
+            continue
+        if not data:
+            continue
+        pool = descriptor_pool.Default()
+        try:
+            if resource_type == "bin":
+                descriptor = pool.AddSerializedFile(data)
+                serialized_bytes = data
+            else:
+                file_proto = descriptor_pb2.FileDescriptorProto()
+                text_format.Merge(data.decode("utf-8"), file_proto)
+                descriptor = pool.Add(file_proto)
+                serialized_bytes = file_proto.SerializeToString()
+            break
+        except Exception:  # pragma: no cover - descriptor registration failure
+            descriptor = None
+            continue
+
+    if descriptor is None or not serialized_bytes:
         raise RuntimeError(
-            "grpcio-tools installation did not bundle OpenAPI annotations proto"
-        ) from exc
-
-    if not proto_bytes:
-        raise RuntimeError(
-            "Failed to locate protoc-gen-openapiv2 annotations proto; "
-            "grpcio-tools installation may be incomplete."
+            "Unable to register OpenAPI annotations descriptor; install grpcio-tools >=1.59"
         )
 
-    file_proto = descriptor_pb2.FileDescriptorProto()
-    text_format.Merge(proto_bytes.decode("utf-8"), file_proto)
-    serialized = file_proto.SerializeToString()
-
-    pool = descriptor_pool.Default()
-    try:
-        pool.AddSerializedFile(serialized)
-    except Exception as exc:  # pragma: no cover - descriptor registration failure
-        raise RuntimeError("Unable to register OpenAPI annotations descriptor") from exc
-
-    descriptor = pool.FindFileByName("protoc-gen-openapiv2/options/annotations.proto")
     module = types.ModuleType(module_name)
     module.DESCRIPTOR = descriptor
 
@@ -80,25 +87,33 @@ def _ensure_openapiv2_annotations() -> None:
     )
 
     pkg_root = "protoc_gen_openapiv2"
-    if pkg_root not in sys.modules:
+    root_mod = sys.modules.get(pkg_root)
+    if root_mod is None:
         root_mod = types.ModuleType(pkg_root)
         root_mod.__path__ = []  # type: ignore[attr-defined]
         sys.modules[pkg_root] = root_mod
-    if f"{pkg_root}.options" not in sys.modules:
-        options_mod = types.ModuleType(f"{pkg_root}.options")
+    elif not hasattr(root_mod, "__path__"):
+        root_mod.__path__ = []  # type: ignore[attr-defined]
+
+    options_name = f"{pkg_root}.options"
+    options_mod = sys.modules.get(options_name)
+    if options_mod is None:
+        options_mod = types.ModuleType(options_name)
         options_mod.__path__ = []  # type: ignore[attr-defined]
-        sys.modules[f"{pkg_root}.options"] = options_mod
+        sys.modules[options_name] = options_mod
+    elif not hasattr(options_mod, "__path__"):
+        options_mod.__path__ = []  # type: ignore[attr-defined]
 
     sys.modules[module_name] = module
-    sys.modules[pkg_root].options = sys.modules[f"{pkg_root}.options"]  # type: ignore[attr-defined]
-    sys.modules[f"{pkg_root}.options"].annotations_pb2 = module  # type: ignore[attr-defined]
+    setattr(root_mod, "options", options_mod)
+    setattr(options_mod, "annotations_pb2", module)
 
     # Ensure symbol database can resolve extensions.
     sym_db = _symbol_database.Default()
     try:
         sym_db.pool.FindFileByName("protoc-gen-openapiv2/options/annotations.proto")
     except KeyError:
-        sym_db.pool.AddSerializedFile(serialized)
+        sym_db.pool.AddSerializedFile(serialized_bytes)
 
 
 _ensure_openapiv2_annotations()
