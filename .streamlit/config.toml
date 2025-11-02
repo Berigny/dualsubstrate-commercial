@@ -3,6 +3,3 @@ headless = true
 
 [runner]
 magicEnabled = false
-
-[dep]
-requirementsFile = "requirements.txt"
