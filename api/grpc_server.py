@@ -2,7 +2,10 @@ import argparse
 import asyncio
 import logging
 import os
+import importlib
+import pkgutil
 import sys
+import types
 from contextlib import suppress
 from pathlib import Path
 from time import perf_counter
@@ -11,10 +14,94 @@ from typing import Iterable, Optional
 import grpc
 from grpc_health.v1 import health, health_pb2, health_pb2_grpc
 from grpc_reflection.v1alpha import reflection
+from google.protobuf import descriptor_pb2, descriptor_pool, text_format
+from google.protobuf.internal import builder as _builder
+from google.protobuf import symbol_database as _symbol_database
 
 GEN_PATH = Path(__file__).resolve().parent / "gen"
 if str(GEN_PATH) not in sys.path:
     sys.path.insert(0, str(GEN_PATH))
+
+
+def _ensure_openapiv2_annotations() -> None:
+    """Load protoc-gen-openapiv2 annotations at runtime when wheel lacking python output."""
+
+    module_name = "protoc_gen_openapiv2.options.annotations_pb2"
+    if module_name in sys.modules:
+        return
+
+    try:  # pragma: no cover - optional dependency resolution
+        import protoc_gen_openapiv2.options.annotations_pb2  # type: ignore[import]
+        sys.modules[module_name] = protoc_gen_openapiv2.options.annotations_pb2
+        return
+    except ModuleNotFoundError:
+        pass
+
+    try:  # ensure grpc_tools is importable for data lookup
+        importlib.import_module("grpc_tools")
+    except ModuleNotFoundError as exc:  # pragma: no cover - environment guard
+        raise RuntimeError(
+            "grpcio-tools must be installed to load OpenAPI annotations"
+        ) from exc
+
+    try:
+        proto_bytes = pkgutil.get_data(
+            "grpc_tools",
+            "_proto/protoc-gen-openapiv2/options/annotations.proto",
+        )
+    except ModuleNotFoundError as exc:  # pragma: no cover - misconfigured runtime
+        raise RuntimeError(
+            "grpcio-tools installation did not bundle OpenAPI annotations proto"
+        ) from exc
+
+    if not proto_bytes:
+        raise RuntimeError(
+            "Failed to locate protoc-gen-openapiv2 annotations proto; "
+            "grpcio-tools installation may be incomplete."
+        )
+
+    file_proto = descriptor_pb2.FileDescriptorProto()
+    text_format.Merge(proto_bytes.decode("utf-8"), file_proto)
+    serialized = file_proto.SerializeToString()
+
+    pool = descriptor_pool.Default()
+    try:
+        pool.AddSerializedFile(serialized)
+    except Exception as exc:  # pragma: no cover - descriptor registration failure
+        raise RuntimeError("Unable to register OpenAPI annotations descriptor") from exc
+
+    descriptor = pool.FindFileByName("protoc-gen-openapiv2/options/annotations.proto")
+    module = types.ModuleType(module_name)
+    module.DESCRIPTOR = descriptor
+
+    _builder.BuildMessageAndEnumDescriptors(descriptor, module.__dict__)
+    _builder.BuildTopDescriptorsAndMessages(
+        descriptor, module_name, module.__dict__
+    )
+
+    pkg_root = "protoc_gen_openapiv2"
+    if pkg_root not in sys.modules:
+        root_mod = types.ModuleType(pkg_root)
+        root_mod.__path__ = []  # type: ignore[attr-defined]
+        sys.modules[pkg_root] = root_mod
+    if f"{pkg_root}.options" not in sys.modules:
+        options_mod = types.ModuleType(f"{pkg_root}.options")
+        options_mod.__path__ = []  # type: ignore[attr-defined]
+        sys.modules[f"{pkg_root}.options"] = options_mod
+
+    sys.modules[module_name] = module
+    sys.modules[pkg_root].options = sys.modules[f"{pkg_root}.options"]  # type: ignore[attr-defined]
+    sys.modules[f"{pkg_root}.options"].annotations_pb2 = module  # type: ignore[attr-defined]
+
+    # Ensure symbol database can resolve extensions.
+    sym_db = _symbol_database.Default()
+    try:
+        sym_db.pool.FindFileByName("protoc-gen-openapiv2/options/annotations.proto")
+    except KeyError:
+        sym_db.pool.AddSerializedFile(serialized)
+
+
+_ensure_openapiv2_annotations()
 
 from api.gen.dualsubstrate.v1 import health_pb2 as ds_health_pb
 from api.gen.dualsubstrate.v1 import health_pb2_grpc as ds_health_rpc
