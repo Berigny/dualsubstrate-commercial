@@ -13,7 +13,6 @@ import grpc
 from grpc_health.v1 import health, health_pb2, health_pb2_grpc
 from grpc_reflection.v1alpha import reflection
 from google.protobuf import descriptor_pb2
-import api.gen.protoc_gen_openapiv2.options.annotations_pb2  # noqa: F401  # preload descriptors
 
 GEN_PATH = Path(__file__).resolve().parent / "gen"
 if str(GEN_PATH) not in sys.path:
