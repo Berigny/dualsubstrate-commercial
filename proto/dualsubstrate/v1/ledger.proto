@@ -4,19 +4,7 @@ package dualsubstrate.v1;
 
 option go_package = "github.com/berigny/dualsubstrate-commercial/gen/go/proto/dualsubstrate/v1;v1";
 
-import "google/api/annotations.proto";
-import "protoc-gen-openapiv2/options/annotations.proto";
-
-option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
-  info: {
-    title: "DualSubstrate API";
-    version: "1.0";
-    description: "p-adic quaternion memory layer";
-  }
-  schemes: HTTPS;
-  consumes: "application/json";
-  produces: "application/json";
-};
+// Removed HTTP/OpenAPI imports to simplify the proto for gRPC-only usage.
 
 // --------- Messages ---------
 message RotateRequest {
@@ -69,22 +57,7 @@ message ScanPrefixResponse {
 
 // --------- Service ---------
 service DualSubstrateService {
-  rpc Rotate(RotateRequest) returns (RotateResponse) {
-    option (google.api.http) = {
-      post: "/v1/rotate"
-      body: "*"
-    };
-  }
-  rpc Append(AppendRequest) returns (AppendResponse) {
-    option (google.api.http) = {
-      post: "/v1/append"
-      body: "*"
-    };
-  }
-  rpc ScanPrefix(ScanPrefixRequest) returns (ScanPrefixResponse) {
-    option (google.api.http) = {
-      post: "/v1/scan_prefix"
-      body: "*"
-    };
-  }
+  rpc Rotate(RotateRequest) returns (RotateResponse);
+  rpc Append(AppendRequest) returns (AppendResponse);
+  rpc ScanPrefix(ScanPrefixRequest) returns (ScanPrefixResponse);
 }
