@@ -12,6 +12,7 @@ prometheus-client>=0.20
 
 # Core API dependencies
 grpcio-tools>=1.59
+grpcio-health-checking>=1.59
 googleapis-common-protos>=1.61
 
 # Streamlit demo

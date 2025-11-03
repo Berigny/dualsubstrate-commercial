@@ -96,16 +96,16 @@ class DualSubstrateHealthService(_HealthServiceBase):
 
 
 class DualSubstrateService(rpc.DualSubstrateServiceServicer):
-    _SERVICE = "dualsubstrate.v1.DualSubstrate"
+    _SERVICE = "dualsubstrate.v1.DualSubstrateService"
 
-    async def Rotate(self, request: pb.QuaternionRequest, context):
+    async def Rotate(self, request: pb.RotateRequest, context):
         start = perf_counter()
         method = "Rotate"
         try:
             q = list(request.q)
             vec = list(request.vec) if request.vec else None
             rotated = core_rotate.rotate(q, vec)
-            response = pb.QuaternionResponse(vec=rotated)
+            response = pb.RotateResponse(vec=rotated)
         except grpc.RpcError as exc:
             record_err(self._SERVICE, method, exc.code().name)
             raise
@@ -142,7 +142,7 @@ class DualSubstrateService(rpc.DualSubstrateServiceServicer):
             record_ok(self._SERVICE, method, duration)
             return response
 
-    async def ScanPrefix(self, request: pb.ScanRequest, context):
+    async def ScanPrefix(self, request: pb.ScanPrefixRequest, context):
         start = perf_counter()
         method = "ScanPrefix"
         try:
@@ -155,7 +155,7 @@ class DualSubstrateService(rpc.DualSubstrateServiceServicer):
                 pb.LedgerRow(entity=entity, ts=ts, r=r, p=p)
                 for entity, ts, r, p in rows
             ]
-            response = pb.ScanResponse(rows=out_rows)
+            response = pb.ScanPrefixResponse(rows=out_rows)
         except grpc.RpcError as exc:
             record_err(self._SERVICE, method, exc.code().name)
             raise
@@ -223,7 +223,7 @@ async def serve() -> None:
         ]
     )
 
-    rpc.add_DualSubstrateServicer_to_server(DualSubstrateService(), server)
+    rpc.add_DualSubstrateServiceServicer_to_server(DualSubstrateService(), server)
 
     health_servicer = health.aio.HealthServicer()
     health_pb2_grpc.add_HealthServicer_to_server(health_servicer, server)
@@ -232,8 +232,8 @@ async def serve() -> None:
     _add_health_to_server(dualsubstrate_health, server)  # type: ignore[arg-type]
 
     service_names = [
-        pb.DESCRIPTOR.services_by_name["DualSubstrate"].full_name,
-        ds_health_pb.DESCRIPTOR.services_by_name["Health"].full_name,
+        pb.DESCRIPTOR.services_by_name["DualSubstrateService"].full_name,
+        ds_health_pb.DESCRIPTOR.services_by_name["HealthService"].full_name,
     ]
     reflection.enable_server_reflection(
         service_names + [reflection.SERVICE_NAME], server
