@@ -9,3 +9,5 @@ COPY . .
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8080 50051
 CMD ["python", "-m", "api.grpc_server"]
+# last line of Dockerfile
+ENTRYPOINT ["python", "-u", "-m", "api.grpc_server"]

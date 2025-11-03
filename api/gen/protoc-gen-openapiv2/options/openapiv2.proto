@@ -1,0 +1,28 @@
+syntax = "proto2";
+
+package protoc_gen_openapiv2.options;
+
+option go_package = "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-openapiv2/options";
+option java_multiple_files = true;
+option java_outer_classname = "Openapiv2Proto";
+option java_package = "com.google.api.openapi";
+option objc_class_prefix = "GPB";
+
+import "google/protobuf/any.proto";
+import "google/protobuf/descriptor.proto";
+
+message Swagger {
+  optional string swagger = 1;
+  optional string info = 2;
+  optional string host = 3;
+  optional string base_path = 4;
+  repeated string schemes = 5;
+  repeated string consumes = 6;
+  repeated string produces = 7;
+  repeated string security_definitions = 8;
+  repeated string security = 9;
+  repeated string tags = 10;
+  repeated string external_docs = 11;
+  repeated string extensions = 12;
+}
+
