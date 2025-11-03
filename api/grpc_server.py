@@ -86,16 +86,16 @@ class DualSubstrateHealthService(_HealthServiceBase):
     """Simple health responder mirroring the gRPC health status."""
 
     def __init__(self) -> None:
-        self._status = ds_health_pb.HealthResponse.Status.UNKNOWN
+        self._status = ds_health_pb.CheckResponse.Status.STATUS_UNKNOWN_UNSPECIFIED
 
     def set_status(self, status: int) -> None:
         self._status = status
 
-    async def Check(self, request: ds_health_pb.HealthRequest, context):  # type: ignore[override]
-        return ds_health_pb.HealthResponse(status=self._status)
+    async def Check(self, request: ds_health_pb.CheckRequest, context):  # type: ignore[override]
+        return ds_health_pb.CheckResponse(status=self._status)
 
 
-class DualSubstrateService(rpc.DualSubstrateServicer):
+class DualSubstrateService(rpc.DualSubstrateServiceServicer):
     _SERVICE = "dualsubstrate.v1.DualSubstrate"
 
     async def Rotate(self, request: pb.QuaternionRequest, context):
@@ -245,7 +245,7 @@ async def serve() -> None:
     await health_servicer.set(
         reflection.SERVICE_NAME, health_pb2.HealthCheckResponse.SERVING
     )
-    dualsubstrate_health.set_status(ds_health_pb.HealthResponse.Status.SERVING)
+    dualsubstrate_health.set_status(ds_health_pb.CheckResponse.Status.STATUS_SERVING)
 
     credentials = _load_server_credentials(*_resolve_tls_paths(args.tls_dir, args.tls_cert, args.tls_key))
     if credentials:
