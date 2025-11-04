@@ -207,10 +207,21 @@ def _load_server_credentials(
 
 async def serve() -> None:
     parser = argparse.ArgumentParser(description="DualSubstrate gRPC server")
-    parser.add_argument("--host", default=os.environ.get("GRPC_HOST", "[::]"))
-    parser.add_argument(
-        "--port", type=int, default=int(os.environ.get("GRPC_PORT", "50051"))
+    default_host = (
+        os.environ.get("GRPC_HOST")
+        or os.environ.get("HOST")
+        or os.environ.get("LISTEN_HOST")
+        or "0.0.0.0"
     )
+    default_port = (
+        os.environ.get("GRPC_PORT")
+        or os.environ.get("PORT")
+        or os.environ.get("LISTEN_PORT")
+        or "8080"
+    )
+
+    parser.add_argument("--host", default=default_host)
+    parser.add_argument("--port", type=int, default=int(default_port))
     parser.add_argument("--tls-dir", default=os.environ.get("GRPC_TLS_DIR"))
     parser.add_argument("--tls-cert", default=os.environ.get("GRPC_TLS_CERT"))
     parser.add_argument("--tls-key", default=os.environ.get("GRPC_TLS_KEY"))
