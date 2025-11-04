@@ -98,7 +98,7 @@ class DualSubstrateHealthService(_HealthServiceBase):
 class DualSubstrateService(rpc.DualSubstrateServiceServicer):
     _SERVICE = "dualsubstrate.v1.DualSubstrate"
 
-    async def Rotate(self, request: pb.QuaternionRequest, context):
+    async def Rotate(self, request: pb.RotateRequest, context):
         start = perf_counter()
         method = "Rotate"
         try:
