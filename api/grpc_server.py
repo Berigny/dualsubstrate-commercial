@@ -101,7 +101,7 @@ class DualSubstrateHealthService(_HealthServiceBase):
 
 
 class DualSubstrateService(rpc.DualSubstrateServiceServicer):
-    _SERVICE = "dualsubstrate.v1.DualSubstrate"
+    _SERVICE = "dualsubstrate.v1.DualSubstrateService"
 
     async def Rotate(self, request: pb.RotateRequest, context):
         start = perf_counter()
@@ -237,8 +237,8 @@ async def serve() -> None:
     _add_health_to_server(dualsubstrate_health, server)  # type: ignore[arg-type]
 
     service_names = [
-        pb.DESCRIPTOR.services_by_name["DualSubstrate"].full_name,
-        ds_health_pb.DESCRIPTOR.services_by_name["Health"].full_name,
+        pb.DESCRIPTOR.services_by_name["DualSubstrateService"].full_name,
+        ds_health_pb.DESCRIPTOR.services_by_name["HealthService"].full_name,
     ]
     reflection.enable_server_reflection(
         service_names + [reflection.SERVICE_NAME], server
