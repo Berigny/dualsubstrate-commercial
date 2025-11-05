@@ -7,4 +7,4 @@
 The fast path to production for the DualSubstrate service. Refer to [README_MVP.md](README_MVP.md)
 for the full project overview, deployment instructions, and architectural notes.
 
-* Commit check 1.0
+* Commit check 1.1
