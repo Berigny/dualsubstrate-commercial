@@ -149,10 +149,28 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 SALIENT_THRESHOLD = 0.7
 
+# ------------------------------------------------------------------
+#  metrics endpoint – MUST bind :8080 for CI gate
+# ------------------------------------------------------------------
+from prometheus_fastapi_instrumentator import Instrumentator
+Instrumentator().instrument(app).expose(app, endpoint="/metrics",
+                                        include_in_schema=False)
+
 import os
 if os.getenv("DEMO_ROUTES") == "on": # defaults to OFF
     from demo_isolated.routes_demo import router as demo_router
     app.include_router(demo_router)
+
+import asyncio
+import threading
+from api.grpc_server import serve as serve_grpc
+
+def run_grpc_server():
+    asyncio.run(serve_grpc())
+
+@app.on_event("startup")
+async def startup_event():
+    threading.Thread(target=run_grpc_server, daemon=True).start()
 
 @app.get("/")
 def root():

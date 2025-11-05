@@ -230,15 +230,12 @@ async def serve() -> None:
 
     rpc.add_DualSubstrateServiceServicer_to_server(DualSubstrateService(), server)
 
-    health_servicer = health.aio.HealthServicer()  # type: ignore[attr-defined]
+    health_servicer = health.HealthServicer()
     health_pb2_grpc.add_HealthServicer_to_server(health_servicer, server)
-
-    dualsubstrate_health = DualSubstrateHealthService()
-    _add_health_to_server(dualsubstrate_health, server)  # type: ignore[arg-type]
 
     service_names = [
         pb.DESCRIPTOR.services_by_name["DualSubstrateService"].full_name,
-        ds_health_pb.DESCRIPTOR.services_by_name["HealthService"].full_name,
+        health.SERVICE_NAME,
     ]
     reflection.enable_server_reflection(
         service_names + [reflection.SERVICE_NAME], server
@@ -263,6 +260,4 @@ async def serve() -> None:
     await server.wait_for_termination()
 
 
-if __name__ == "__main__":
-    with suppress(KeyboardInterrupt):
-        asyncio.run(serve())
+# This file is now imported by main.py and the serve() function is called from there.

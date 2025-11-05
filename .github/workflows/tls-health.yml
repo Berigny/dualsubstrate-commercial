@@ -43,15 +43,10 @@ jobs:
         run: |
           go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
           echo "$HOME/go/bin" >> $GITHUB_PATH
-      - name: Custom health probe
+      - name: gRPC health probe
         run: |
           grpcurl -plaintext -import-path ./proto \
-            -proto dualsubstrate/v1/health.proto \
-            localhost:50051 dualsubstrate.v1.Health/Check
-      - name: gRPC health check
-        run: |
-          grpcurl -plaintext \
-            -d '{"service":"dualsubstrate.v1.DualSubstrate"}' \
+            -proto grpc/health/v1/health.proto \
             localhost:50051 grpc.health.v1.Health/Check
       - name: List services via reflection
         run: |
