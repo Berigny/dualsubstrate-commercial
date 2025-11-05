@@ -258,9 +258,16 @@ async def serve() -> None:
     else:
         server.add_insecure_port(f"{args.host}:{args.port}")
 
-    await server.start()
-    logging.info("gRPC server listening on %s:%d", args.host, args.port)
-    await server.wait_for_termination()
+    metrics_task = asyncio.create_task(metrics_server())
+
+    try:
+        await server.start()
+        logging.info("gRPC server listening on %s:%d", args.host, args.port)
+        await server.wait_for_termination()
+    finally:
+        metrics_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await metrics_task
 
 
 if __name__ == "__main__":
