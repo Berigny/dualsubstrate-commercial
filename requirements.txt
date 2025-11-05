@@ -9,10 +9,12 @@ wsproto>=1.2.0
 openai>=1.35
 websocket-client>=1.8.0
 prometheus-client>=0.20
+aiohttp>=3.9
 
 # Core API dependencies
 grpcio-tools>=1.59
 googleapis-common-protos>=1.61
+grpcio-health-checking>=1.59
 
 # Streamlit demo
 streamlit>=1.32

@@ -236,9 +236,25 @@ async def serve() -> None:
     dualsubstrate_health = DualSubstrateHealthService()
     _add_health_to_server(dualsubstrate_health, server)  # type: ignore[arg-type]
 
+    server.add_generic_rpc_handlers(
+        (
+            grpc.method_handlers_generic_handler(
+                "dualsubstrate.v1.Health",
+                {
+                    "Check": grpc.aio.unary_unary_rpc_method_handler(
+                        dualsubstrate_health.Check,
+                        request_deserializer=ds_health_pb.CheckRequest.FromString,
+                        response_serializer=ds_health_pb.CheckResponse.SerializeToString,
+                    )
+                },
+            ),
+        )
+    )
+
     service_names = [
         pb.DESCRIPTOR.services_by_name["DualSubstrateService"].full_name,
         ds_health_pb.DESCRIPTOR.services_by_name["HealthService"].full_name,
+        "dualsubstrate.v1.Health",
     ]
     reflection.enable_server_reflection(
         service_names + [reflection.SERVICE_NAME], server
@@ -258,9 +274,16 @@ async def serve() -> None:
     else:
         server.add_insecure_port(f"{args.host}:{args.port}")
 
-    await server.start()
-    logging.info("gRPC server listening on %s:%d", args.host, args.port)
-    await server.wait_for_termination()
+    metrics_task = asyncio.create_task(metrics_server())
+
+    try:
+        await server.start()
+        logging.info("gRPC server listening on %s:%d", args.host, args.port)
+        await server.wait_for_termination()
+    finally:
+        metrics_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await metrics_task
 
 
 if __name__ == "__main__":
