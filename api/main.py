@@ -1,6 +1,8 @@
 """
 DualSubstrate API – ledger + Metatron-star flow-rule enforcement
 """
+import os
+
 from fastapi import FastAPI, HTTPException, Depends, Query, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, conint
 from typing import List, Tuple, Literal, Callable
@@ -147,6 +149,11 @@ app = FastAPI(title="DualSubstrate – Flow-Rule Ledger", version="0.3.0", lifes
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
+
+if os.getenv("DEMO_ROUTES") == "on":
+    from demo_isolated.routes_demo import router as demo_router
+
+    app.include_router(demo_router)
 SALIENT_THRESHOLD = 0.7
 
 
