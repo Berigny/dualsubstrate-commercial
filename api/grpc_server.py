@@ -7,7 +7,7 @@ import types
 from contextlib import suppress
 from pathlib import Path
 from time import perf_counter
-from typing import Iterable, Optional
+from typing import Any, Iterable, Optional, cast
 
 import grpc
 from grpc_health.v1 import health, health_pb2, health_pb2_grpc
@@ -57,6 +57,11 @@ from api.gen.dualsubstrate.v1 import ledger_pb2 as pb
 from api.gen.dualsubstrate.v1 import ledger_pb2_grpc as rpc
 from api.metrics import record_err, record_ok
 from api.metrics_http import metrics_server
+
+ds_health_pb = cast(Any, ds_health_pb)
+ds_health_rpc = cast(Any, ds_health_rpc)
+pb = cast(Any, pb)
+rpc = cast(Any, rpc)
 
 # --- wire-up to your existing core ---
 # Expect these functions to exist or be easy to add:
@@ -202,7 +207,7 @@ def _load_server_credentials(
         logging.error("Failed reading TLS assets: %s", exc)
         raise
 
-    return grpc.ssl_server_credentials(((private_key, certificate_chain),))
+    return grpc.ssl_server_credentials([(private_key, certificate_chain)])
 
 
 async def serve() -> None:
@@ -223,9 +228,9 @@ async def serve() -> None:
         ]
     )
 
-    rpc.add_DualSubstrateServicer_to_server(DualSubstrateService(), server)
+    rpc.add_DualSubstrateServiceServicer_to_server(DualSubstrateService(), server)
 
-    health_servicer = health.aio.HealthServicer()
+    health_servicer = health.aio.HealthServicer()  # type: ignore[attr-defined]
     health_pb2_grpc.add_HealthServicer_to_server(health_servicer, server)
 
     dualsubstrate_health = DualSubstrateHealthService()
