@@ -149,6 +149,10 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 SALIENT_THRESHOLD = 0.7
 
+import os
+if os.getenv("DEMO_ROUTES") == "on": # defaults to OFF
+    from demo_isolated.routes_demo import router as demo_router
+    app.include_router(demo_router)
 
 @app.get("/")
 def root():
