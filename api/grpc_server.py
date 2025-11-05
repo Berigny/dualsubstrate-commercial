@@ -105,7 +105,7 @@ class DualSubstrateService(rpc.DualSubstrateServiceServicer):
             q = list(request.q)
             vec = list(request.vec) if request.vec else None
             rotated = core_rotate.rotate(q, vec)
-            response = pb.QuaternionResponse(vec=rotated)
+            response = pb.RotateResponse(vec=rotated)
         except grpc.RpcError as exc:
             record_err(self._SERVICE, method, exc.code().name)
             raise
@@ -142,7 +142,7 @@ class DualSubstrateService(rpc.DualSubstrateServiceServicer):
             record_ok(self._SERVICE, method, duration)
             return response
 
-    async def ScanPrefix(self, request: pb.ScanRequest, context):
+    async def ScanPrefix(self, request: pb.ScanPrefixRequest, context):
         start = perf_counter()
         method = "ScanPrefix"
         try:
@@ -155,7 +155,7 @@ class DualSubstrateService(rpc.DualSubstrateServiceServicer):
                 pb.LedgerRow(entity=entity, ts=ts, r=r, p=p)
                 for entity, ts, r, p in rows
             ]
-            response = pb.ScanResponse(rows=out_rows)
+            response = pb.ScanPrefixResponse(rows=out_rows)
         except grpc.RpcError as exc:
             record_err(self._SERVICE, method, exc.code().name)
             raise
