@@ -134,6 +134,17 @@ def _legalise_transition(src_node: int, dst_node: int) -> Tuple[bool, bool]:
     # illegal -> must go through C (we still store the delta, but flag via_c)
     return (True, True)
 
+# -----  live counters for demo  -----
+tokens_saved   = 0
+total_requests = 0
+duplicates     = 0      # increment wherever you detect dupes
+
+@app.get("/metrics", include_in_schema=False)
+def live_metrics():
+    integrity = 1.0 if total_requests == 0 else 1 - (duplicates / total_requests)
+    return {"tokens_deduped": tokens_saved,
+            "ledger_integrity": round(integrity, 3)}
+
 
 # ---------- FastAPI ----------
 @asynccontextmanager
@@ -164,6 +175,9 @@ def anchor(req: AnchorReq, request: Request, _: str = Depends(require_key)):
     2. enforce flow-rules (auto-route via C if needed)
     3. write only lawful deltas
     """
+    # -----  live counters for demo  -----
+    global tokens_saved, total_requests, duplicates
+
     ts = int(time.time() * 1000)
     centroid = _centroid_now()
     edges: List[Edge] = []
@@ -172,23 +186,30 @@ def anchor(req: AnchorReq, request: Request, _: str = Depends(require_key)):
     for f in req.factors:
         src = _prime_to_node(f.prime)
         dst = _prime_to_node(f.prime)  # self-loop for persistence
-        # if delta !=0 we treat as *intent* to move; here we simplify to self
-        # real use-case: user supplies *target* node and we compute delta
         allowed, via_c = _legalise_transition(src, dst)
         if not allowed:
             raise HTTPException(422, f"Transition {src}→{dst} never allowed")
         edges.append(Edge(src=src, dst=dst, via_c=via_c, label=_label(src, dst)))
         lawful_factors.append((f.prime, f.delta))
 
-    # write to ledger
+    # ---------- ledger write ----------
     request.app.state.ledger.anchor(req.entity, lawful_factors)
+
+    # ---------- update demo counters ----------
+    total_requests += 1
+    # simple duplicate detector: same entity + identical prime set
+    incoming_primes = {f.prime for f in req.factors}
+    prev_primes     = {p for p, _ in request.app.state.ledger.factors(req.entity)}
+    if incoming_primes == prev_primes and prev_primes:   # non-empty match = dupe
+        duplicates   += 1
+        tokens_saved += len(req.factors)
+
     return {
         "status": "anchored",
         "edges": edges,
         "centroid_at_write": centroid,
         "timestamp": ts,
     }
-
 
 @app.post("/query")
 @limiter.limit("200/minute")
