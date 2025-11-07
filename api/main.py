@@ -3,9 +3,10 @@ DualSubstrate API – ledger + Metatron-star flow-rule enforcement
 """
 from fastapi import FastAPI, HTTPException, Depends, Query, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, conint
-from typing import List, Tuple, Literal, Callable
+from typing import List, Tuple, Literal, Callable, Set
 import json
 import time
+import logging
 from contextlib import asynccontextmanager
 
 # ---------- imports ----------
@@ -159,6 +160,7 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 SALIENT_THRESHOLD = 0.7
+logger = logging.getLogger(__name__)
 
 
 @app.get("/")
@@ -198,10 +200,17 @@ def anchor(req: AnchorReq, request: Request, _: str = Depends(require_key)):
     # ---------- update demo counters ----------
     total_requests += 1
     # simple duplicate detector: same entity + identical prime set
-    incoming_primes = {f.prime for f in req.factors}
-    prev_primes     = {p for p, _ in request.app.state.ledger.factors(req.entity)}
-    if incoming_primes == prev_primes and prev_primes:   # non-empty match = dupe
-        duplicates   += 1
+    incoming_primes = {f.prime for f in req.factors if f.delta != 0}
+    prev_primes: Set[int] = set()
+    try:
+        snapshot = request.app.state.ledger.factors(req.entity)
+    except Exception as exc:  # pragma: no cover - defensive: keep anchoring even if metrics fail
+        logger.warning("ledger factors lookup failed for %s: %s", req.entity, exc)
+    else:
+        prev_primes = {p for p, exponent in snapshot if exponent != 0}
+
+    if incoming_primes and incoming_primes == prev_primes:
+        duplicates += 1
         tokens_saved += len(req.factors)
 
     return {
