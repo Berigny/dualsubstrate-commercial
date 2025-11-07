@@ -17,7 +17,7 @@ PROTO_DIR := proto
 GEN_PY := api/gen
 OPENAPI_OUT := openapi
 
-.PHONY: help venv setup run test streamlit streamlit-stop streamlit-simple streamlit-simple-stop streamlit-deps grpc.gen grpc.openapi grpc.run clean clean-data
+.PHONY: help venv setup run test streamlit streamlit-stop streamlit-simple streamlit-simple-stop streamlit-deps grpc.gen grpc.gen.ledger grpc.gen.health grpc.openapi grpc.run clean clean-data
 
 help:
 	@echo "Common targets:"
@@ -77,19 +77,21 @@ clean-data:
 	rm -rf data/event.log data/factors data/postings
 	mkdir -p data
 
-grpc.gen: setup $(VENV)/.grpc-installed
-	PROTO_EXPORT_DIR=$$(mktemp -d); \
-	PY_INCLUDE_DIR=$$($(PYTHON_BIN) -c 'import grpc_tools, pathlib; print(pathlib.Path(grpc_tools.__file__).resolve().parent / "_proto")'); \
-	buf export . --path $(PROTO_DIR) --output $$PROTO_EXPORT_DIR; \
+grpc.gen: grpc.gen.ledger grpc.gen.health
+
+grpc.gen.ledger: $(VENV)/.grpc-installed
 	$(PYTHON_BIN) -m grpc_tools.protoc \
-	  -I$(PROTO_DIR) \
-	  -I$$PROTO_EXPORT_DIR \
-	  -I$$PY_INCLUDE_DIR \
 	  --python_out=$(GEN_PY) \
 	  --grpc_python_out=$(GEN_PY) \
-	  $(PROTO_DIR)/dualsubstrate/v1/ledger.proto \
-	  $(PROTO_DIR)/dualsubstrate/v1/health.proto; \
-	rm -rf $$PROTO_EXPORT_DIR
+	  --proto_path=$(PROTO_DIR) \
+	  $(PROTO_DIR)/dualsubstrate/v1/ledger.proto
+
+grpc.gen.health: $(VENV)/.grpc-installed
+	$(PYTHON_BIN) -m grpc_tools.protoc \
+	  --python_out=$(GEN_PY) \
+	  --grpc_python_out=$(GEN_PY) \
+	  --proto_path=$(PROTO_DIR) \
+	  $(PROTO_DIR)/dualsubstrate/v1/health.proto
 
 grpc.run: $(VENV)/.grpc-installed
 	$(PYTHON_BIN) -m api.grpc_server
