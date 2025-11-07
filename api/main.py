@@ -40,6 +40,14 @@ else:  # pragma: no cover - defensive fallback when Rust wheel missing
     _transition_allowed = _python_transition_allowed
 
 
+# ---------- demo metrics ----------
+_metrics_lock = threading.Lock()
+tokens_saved = 0
+total_calls = 0
+duplicate_calls = 0
+_seen_signatures: Set[str] = set()
+
+
 # ---------- models ----------
 Prime = conint(ge=2, le=19)  # S0 primes only for MVP
 
@@ -52,6 +60,31 @@ class Factor(BaseModel):
 class AnchorReq(BaseModel):
     entity: str
     factors: List[Factor]
+    text: str | None = None
+
+
+def _factor_signature(entity: str, factors: List[Factor]) -> str:
+    payload = {
+        "entity": entity,
+        "factors": [(f.prime, f.delta) for f in factors],
+    }
+    return json.dumps(payload, sort_keys=True)
+
+
+def _record_metrics(entity: str, factors: List[Factor]) -> bool:
+    """
+    Update the demo counters and report whether this anchor matches a prior entry.
+    """
+    global tokens_saved, total_calls, duplicate_calls
+    signature = _factor_signature(entity, factors)
+    with _metrics_lock:
+        total_calls += 1
+        if signature in _seen_signatures:
+            duplicate_calls += 1
+            tokens_saved += len(factors)
+            return True
+        _seen_signatures.add(signature)
+    return False
 
 
 class QueryReq(BaseModel):
@@ -141,6 +174,7 @@ def _legalise_transition(src_node: int, dst_node: int) -> Tuple[bool, bool]:
 async def lifespan(app: FastAPI):
     app.state.ledger = Ledger()
     app.state.s1_salience = S1Salience()
+    app.state.recall_store: Dict[str, str] = {}
     yield
     app.state.ledger.close()
 
@@ -170,6 +204,8 @@ def anchor(req: AnchorReq, request: Request, _: str = Depends(require_key)):
     edges: List[Edge] = []
     lawful_factors: List[Tuple[int, int]] = []  # (prime, delta)
 
+    _record_metrics(req.entity, req.factors)
+
     for f in req.factors:
         src = _prime_to_node(f.prime)
         dst = _prime_to_node(f.prime)  # self-loop for persistence
@@ -183,6 +219,8 @@ def anchor(req: AnchorReq, request: Request, _: str = Depends(require_key)):
 
     # write to ledger
     request.app.state.ledger.anchor(req.entity, lawful_factors)
+    if req.text:
+        request.app.state.recall_store[req.entity] = req.text
     return {
         "status": "anchored",
         "edges": edges,
@@ -224,6 +262,16 @@ def rotate(req: RotateReq, request: Request, _: str = Depends(require_key)):
         rotated_checksum=rotated_checksum,
         energy_cycles=int(cycles_after - cycles_before),
     )
+
+
+@app.get("/retrieve")
+def recall_last(entity: str, request: Request, _: str = Depends(require_key)):
+    """Return the most recently anchored raw text for ``entity``."""
+
+    text = request.app.state.recall_store.get(entity)
+    if text is None:
+        raise HTTPException(404, detail="Not Found")
+    return {"entity": entity, "text": text}
 
 
 @app.get("/checksum")
@@ -280,6 +328,19 @@ def health() -> dict[str, str]:
 @app.get("/centroid")
 def centroid_now():
     return {"centroid": _centroid_now()}
+
+
+@app.get("/metrics")
+def metrics(_: str = Depends(require_key)):
+    """Expose live demo counters for the Streamlit chassis."""
+
+    with _metrics_lock:
+        saved = tokens_saved
+        total = total_calls
+        dup = duplicate_calls
+
+    integrity = 1.0 if total == 0 else max(0.0, 1 - (dup / total))
+    return {"tokens_deduped": saved, "ledger_integrity": integrity}
 
 
 @app.post("/qp/{key}")
