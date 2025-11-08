@@ -279,6 +279,14 @@ def checksum(entity: str, request: Request, _: str = Depends(require_key)):
     return {"entity": entity, "checksum": request.app.state.ledger.checksum(entity)}
 
 
+@app.get("/ledger")
+def ledger_snapshot(entity: str, request: Request, _: str = Depends(require_key)):
+    """Return the persisted exponent vector for ``entity``."""
+
+    factors = request.app.state.ledger.factors(entity)
+    return {"entity": entity, "factors": [{"prime": p, "value": v} for p, v in factors]}
+
+
 # ---------- new traverse endpoint (unchanged logic) ----------
 @app.post("/traverse", response_model=TraverseResp)
 @limiter.limit("300/minute")
