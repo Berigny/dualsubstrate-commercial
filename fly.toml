@@ -10,7 +10,7 @@ primary_region = "syd"
   
 [mounts]
   source = "ledger_volume"
-  destination = "/data"
+  destination = "/app/data"
 
 [processes]
   app = "uvicorn api.main:app --host 0.0.0.0 --port 8080 --http h11"
