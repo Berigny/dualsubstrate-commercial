@@ -63,12 +63,14 @@ class AnchorReq(BaseModel):
     text: str | None = None
 
 
-def _persist_memory_entry(req: AnchorReq, request: Request) -> dict | None:
+def _persist_memory_entry(
+    req: AnchorReq, request: Request, *, timestamp: int | None = None
+) -> dict | None:
     """Persist the transcript payload into the Qp namespace."""
     if not req.text:
         return None
 
-    ts_ms = int(time.time() * 1000)
+    ts_ms = timestamp or int(time.time() * 1000)
     key = f"{req.entity}:{ts_ms}".encode()
     payload = json.dumps(
         {
@@ -237,7 +239,7 @@ def anchor(req: AnchorReq, request: Request, _: str = Depends(require_key)):
 
     # write to ledger
     request.app.state.ledger.anchor(req.entity, lawful_factors)
-    _persist_memory_entry(req, request)
+    _persist_memory_entry(req, request, timestamp=ts)
     if req.text:
         request.app.state.recall_store[req.entity] = req.text
     return {
