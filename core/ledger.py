@@ -115,6 +115,13 @@ class Ledger:
         val = self.fdb.get(self._qp_key(key))
         return val.decode() if val else None
 
+    def qp_iter(self, prefix: bytes):
+        """Iterate over Qp namespace entries with the provided prefix."""
+        stored_prefix = self._qp_key(prefix)
+        for key, value in _iter_prefix(self.fdb, stored_prefix):
+            key_bytes = key[len(QP_PREFIX):] if key.startswith(QP_PREFIX) else key
+            yield key_bytes, value
+
     @staticmethod
     def _open_event_log():
         log_path = Path(EVENT_LOG)

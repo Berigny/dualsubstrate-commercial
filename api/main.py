@@ -63,6 +63,24 @@ class AnchorReq(BaseModel):
     text: str | None = None
 
 
+def _persist_memory_entry(req: AnchorReq, request: Request) -> dict | None:
+    """Persist the transcript payload into the Qp namespace."""
+    if not req.text:
+        return None
+
+    ts_ms = int(time.time() * 1000)
+    key = f"{req.entity}:{ts_ms}".encode()
+    payload = json.dumps(
+        {
+            "text": req.text,
+            "timestamp": ts_ms,
+            "primes": [int(f.prime) for f in req.factors],
+        }
+    )
+    request.app.state.ledger.qp_put(key, payload)
+    return {"stored": True, "key": key.decode(), "timestamp": ts_ms}
+
+
 def _factor_signature(entity: str, factors: List[Factor]) -> str:
     payload = {
         "entity": entity,
@@ -219,6 +237,7 @@ def anchor(req: AnchorReq, request: Request, _: str = Depends(require_key)):
 
     # write to ledger
     request.app.state.ledger.anchor(req.entity, lawful_factors)
+    _persist_memory_entry(req, request)
     if req.text:
         request.app.state.recall_store[req.entity] = req.text
     return {
@@ -272,6 +291,52 @@ def recall_last(entity: str, request: Request, _: str = Depends(require_key)):
     if text is None:
         raise HTTPException(404, detail="Not Found")
     return {"entity": entity, "text": text}
+
+
+# ----------  persistent memory log  ----------
+@app.post("/memories", include_in_schema=False)
+def persist_memory(req: AnchorReq, request: Request, _: str = Depends(require_key)):
+    """
+    Store every transcript in Qp column family keyed by entity|timestamp_ms.
+    """
+    result = _persist_memory_entry(req, request)
+    if result is None:
+        return {"stored": False}
+    return result
+
+
+@app.get("/memories", include_in_schema=False)
+def memories(
+    request: Request,
+    entity: str = Query("demo_user"),
+    since: int = Query(0, ge=0),
+    until: int | None = Query(None, ge=0),
+    limit: int = Query(10, ge=1, le=100),
+    _: str = Depends(require_key),
+):
+    """
+    Return chronologically descending list of memories for entity in [since, until].
+    """
+    prefix = f"{entity}:".encode()
+    entries: List[dict] = []
+    upper_bound = until or int(time.time() * 1000)
+
+    for raw_key, raw_value in request.app.state.ledger.qp_iter(prefix):
+        try:
+            _, ts_part = raw_key.split(b":", 1)
+            ts = int(ts_part)
+        except (ValueError, IndexError):
+            continue
+        if ts < since or ts > upper_bound:
+            continue
+        try:
+            decoded = json.loads(raw_value.decode())
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            continue
+        entries.append(decoded)
+
+    entries.sort(key=lambda item: item.get("timestamp", 0), reverse=True)
+    return entries[:limit]
 
 
 @app.get("/checksum")
