@@ -149,6 +149,16 @@ class TraverseResp(BaseModel):
 # ---------- helpers ----------
 Node = Literal[0, 1, 2, 3, 4, 5, 6, 7]
 PRIME_IDX = {p: idx for idx, p in enumerate(PRIME_ARRAY)}
+PRIME_SYMBOLS = {
+    2: "Novelty",
+    3: "Uniqueness",
+    5: "Connection",
+    7: "Action",
+    11: "Relatedness",
+    13: "Mastery",
+    17: "Potential",
+    19: "Autonomy",
+}
 
 
 def _prime_to_node(p: Prime) -> Node:
@@ -351,7 +361,11 @@ def ledger_snapshot(entity: str, request: Request, _: str = Depends(require_key)
     """Return the persisted exponent vector for ``entity``."""
 
     factors = request.app.state.ledger.factors(entity)
-    return {"entity": entity, "factors": [{"prime": p, "value": v} for p, v in factors]}
+    enriched = [
+        {"prime": p, "value": v, "symbol": PRIME_SYMBOLS.get(p, "Unknown")}
+        for p, v in factors
+    ]
+    return {"entity": entity, "factors": enriched}
 
 
 # ---------- new traverse endpoint (unchanged logic) ----------
