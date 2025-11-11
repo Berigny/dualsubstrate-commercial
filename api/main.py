@@ -18,6 +18,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from s1_s2_memory import S1Salience, deterministic_key
+from api.prime_schema import annotate_factors, annotate_prime_list, get_schema_response
 
 # ---------- flow-rule bridge ----------
 _ALLOWED_DIRECT = {(1, 2), (5, 6), (3, 0), (7, 4), (1, 0)}
@@ -149,16 +150,6 @@ class TraverseResp(BaseModel):
 # ---------- helpers ----------
 Node = Literal[0, 1, 2, 3, 4, 5, 6, 7]
 PRIME_IDX = {p: idx for idx, p in enumerate(PRIME_ARRAY)}
-PRIME_SYMBOLS = {
-    2: "Novelty",
-    3: "Uniqueness",
-    5: "Connection",
-    7: "Action",
-    11: "Relatedness",
-    13: "Mastery",
-    17: "Potential",
-    19: "Autonomy",
-}
 
 
 def _prime_to_node(p: Prime) -> Node:
@@ -218,6 +209,12 @@ SALIENT_THRESHOLD = 0.7
 @app.get("/")
 def root():
     return {"message": "DualSubstrate /traverse ready"}
+
+
+@app.get("/schema", include_in_schema=False)
+def prime_schema():
+    """Expose canonical prime + modifier schema for agents and clients."""
+    return get_schema_response()
 
 
 # ---------- existing endpoints ----------
@@ -345,6 +342,8 @@ def memories(
             decoded = json.loads(raw_value.decode())
         except (UnicodeDecodeError, json.JSONDecodeError):
             continue
+        if isinstance(decoded, dict) and "primes" in decoded:
+            decoded["prime_annotations"] = annotate_prime_list(decoded.get("primes", []))
         entries.append(decoded)
 
     entries.sort(key=lambda item: item.get("timestamp", 0), reverse=True)
@@ -361,11 +360,7 @@ def ledger_snapshot(entity: str, request: Request, _: str = Depends(require_key)
     """Return the persisted exponent vector for ``entity``."""
 
     factors = request.app.state.ledger.factors(entity)
-    enriched = [
-        {"prime": p, "value": v, "symbol": PRIME_SYMBOLS.get(p, "Unknown")}
-        for p, v in factors
-    ]
-    return {"entity": entity, "factors": enriched}
+    return {"entity": entity, "factors": annotate_factors(factors)}
 
 
 # ---------- new traverse endpoint (unchanged logic) ----------
