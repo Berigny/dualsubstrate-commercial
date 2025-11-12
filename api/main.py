@@ -5,6 +5,7 @@ from fastapi import FastAPI, HTTPException, Depends, Query, Request, WebSocket, 
 from pydantic import BaseModel, conint
 from typing import Callable, Dict, List, Literal, Set, Tuple
 import json
+import os
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -19,6 +20,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from s1_s2_memory import S1Salience, deterministic_key
 from api.prime_schema import annotate_factors, annotate_prime_list, get_schema_response
+from api.ledger_manager import get_ledger, close_all, list_ledgers
 
 # ---------- flow-rule bridge ----------
 _ALLOWED_DIRECT = {(1, 2), (5, 6), (3, 0), (7, 4), (1, 0)}
@@ -65,7 +67,7 @@ class AnchorReq(BaseModel):
 
 
 def _persist_memory_entry(
-    req: AnchorReq, request: Request, *, timestamp: int | None = None
+    req: AnchorReq, ledger: Ledger, *, timestamp: int | None = None
 ) -> dict | None:
     """Persist the transcript payload into the Qp namespace."""
     if not req.text:
@@ -80,7 +82,7 @@ def _persist_memory_entry(
             "primes": [int(f.prime) for f in req.factors],
         }
     )
-    request.app.state.ledger.qp_put(key, payload)
+    ledger.qp_put(key, payload)
     return {"stored": True, "key": key.decode(), "timestamp": ts_ms}
 
 
@@ -147,9 +149,19 @@ class TraverseResp(BaseModel):
     final_centroid: Literal[0, 1]
 
 
+class LedgerCreate(BaseModel):
+    ledger_id: str
+
+
 # ---------- helpers ----------
 Node = Literal[0, 1, 2, 3, 4, 5, 6, 7]
 PRIME_IDX = {p: idx for idx, p in enumerate(PRIME_ARRAY)}
+LEDGER_HEADER = "X-Ledger-ID"
+DEFAULT_LEDGER_ID = os.getenv("DEFAULT_LEDGER_ID", "default")
+
+
+def _ledger_id(request: Request) -> str:
+    return request.headers.get(LEDGER_HEADER, DEFAULT_LEDGER_ID)
 
 
 def _prime_to_node(p: Prime) -> Node:
@@ -193,11 +205,12 @@ def _legalise_transition(src_node: int, dst_node: int) -> Tuple[bool, bool]:
 # ---------- FastAPI ----------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.ledger = Ledger()
     app.state.s1_salience = S1Salience()
     app.state.recall_store: Dict[str, str] = {}
-    yield
-    app.state.ledger.close()
+    try:
+        yield
+    finally:
+        close_all()
 
 app = FastAPI(title="DualSubstrate – Flow-Rule Ledger", version="0.3.0", lifespan=lifespan)
 app.state.limiter = limiter
@@ -217,6 +230,20 @@ def prime_schema():
     return get_schema_response()
 
 
+@app.get("/admin/ledgers", include_in_schema=False)
+def list_ledger_mounts(_: str = Depends(require_key)):
+    return {"ledgers": list_ledgers()}
+
+
+@app.post("/admin/ledgers", include_in_schema=False)
+def create_ledger(payload: LedgerCreate, _: str = Depends(require_key)):
+    ledger_id = payload.ledger_id.strip()
+    if not ledger_id:
+        raise HTTPException(422, "ledger_id must not be empty")
+    get_ledger(ledger_id)
+    return {"ledger_id": ledger_id}
+
+
 # ---------- existing endpoints ----------
 @app.post("/anchor")
 @limiter.limit("100/minute")
@@ -226,6 +253,7 @@ def anchor(req: AnchorReq, request: Request, _: str = Depends(require_key)):
     2. enforce flow-rules (auto-route via C if needed)
     3. write only lawful deltas
     """
+    ledger = get_ledger(_ledger_id(request))
     ts = int(time.time() * 1000)
     centroid = _centroid_now()
     edges: List[Edge] = []
@@ -245,8 +273,8 @@ def anchor(req: AnchorReq, request: Request, _: str = Depends(require_key)):
         lawful_factors.append((f.prime, f.delta))
 
     # write to ledger
-    request.app.state.ledger.anchor(req.entity, lawful_factors)
-    _persist_memory_entry(req, request, timestamp=ts)
+    ledger.anchor(req.entity, lawful_factors)
+    _persist_memory_entry(req, ledger, timestamp=ts)
     if req.text:
         request.app.state.recall_store[req.entity] = req.text
     return {
@@ -260,17 +288,19 @@ def anchor(req: AnchorReq, request: Request, _: str = Depends(require_key)):
 @app.post("/query")
 @limiter.limit("200/minute")
 def query(req: QueryReq, request: Request, _: str = Depends(require_key)):
-    hits = request.app.state.ledger.query(req.primes)
+    ledger = get_ledger(_ledger_id(request))
+    hits = ledger.query(req.primes)
     return {"results": [{"entity": e, "weight": w} for e, w in hits]}
 
 
 @app.post("/rotate", response_model=RotateResp)
 def rotate(req: RotateReq, request: Request, _: str = Depends(require_key)):
     """Rotate the eight-prime exponent lattice via quaternion conjugation."""
-    original_checksum = request.app.state.ledger.checksum(req.entity)
+    ledger = get_ledger(_ledger_id(request))
+    original_checksum = ledger.checksum(req.entity)
 
     exps = [0] * len(PRIME_ARRAY)
-    for prime, exp in request.app.state.ledger.factors(req.entity):
+    for prime, exp in ledger.factors(req.entity):
         idx = PRIME_IDX.get(prime)
         if idx is not None:
             exps[idx] = exp
@@ -282,9 +312,9 @@ def rotate(req: RotateReq, request: Request, _: str = Depends(require_key)):
     new_exps = core_rs.py_unpack_quaternion(q1_new, q2_new, norm1, norm2)
 
     cmds = list(zip(PRIME_ARRAY, new_exps))
-    request.app.state.ledger.anchor_batch(req.entity, cmds)
+    ledger.anchor_batch(req.entity, cmds)
 
-    rotated_checksum = request.app.state.ledger.checksum(req.entity)
+    rotated_checksum = ledger.checksum(req.entity)
     return RotateResp(
         original_checksum=original_checksum,
         rotated_checksum=rotated_checksum,
@@ -308,7 +338,8 @@ def persist_memory(req: AnchorReq, request: Request, _: str = Depends(require_ke
     """
     Store every transcript in Qp column family keyed by entity|timestamp_ms.
     """
-    result = _persist_memory_entry(req, request)
+    ledger = get_ledger(_ledger_id(request))
+    result = _persist_memory_entry(req, ledger)
     if result is None:
         return {"stored": False}
     return result
@@ -326,11 +357,12 @@ def memories(
     """
     Return chronologically descending list of memories for entity in [since, until].
     """
+    ledger = get_ledger(_ledger_id(request))
     prefix = f"{entity}:".encode()
     entries: List[dict] = []
     upper_bound = until or int(time.time() * 1000)
 
-    for raw_key, raw_value in request.app.state.ledger.qp_iter(prefix):
+    for raw_key, raw_value in ledger.qp_iter(prefix):
         try:
             _, ts_part = raw_key.split(b":", 1)
             ts = int(ts_part)
@@ -352,14 +384,16 @@ def memories(
 
 @app.get("/checksum")
 def checksum(entity: str, request: Request, _: str = Depends(require_key)):
-    return {"entity": entity, "checksum": request.app.state.ledger.checksum(entity)}
+    ledger = get_ledger(_ledger_id(request))
+    return {"entity": entity, "checksum": ledger.checksum(entity)}
 
 
 @app.get("/ledger")
 def ledger_snapshot(entity: str, request: Request, _: str = Depends(require_key)):
     """Return the persisted exponent vector for ``entity``."""
 
-    factors = request.app.state.ledger.factors(entity)
+    ledger = get_ledger(_ledger_id(request))
+    factors = ledger.factors(entity)
     return {"entity": entity, "factors": annotate_factors(factors)}
 
 
@@ -436,7 +470,8 @@ def qp_put(key: str, req: QpPut, request: Request, _: str = Depends(require_key)
             raise ValueError
     except ValueError:
         raise HTTPException(422, "Key must be a 16-byte hex string.")
-    request.app.state.ledger.qp_put(key_bytes, req.value)
+    ledger = get_ledger(_ledger_id(request))
+    ledger.qp_put(key_bytes, req.value)
     return {"status": "ok"}
 
 
@@ -449,7 +484,8 @@ def qp_get(key: str, request: Request, _: str = Depends(require_key)):
             raise ValueError
     except ValueError:
         raise HTTPException(422, "Key must be a 16-byte hex string.")
-    value = request.app.state.ledger.qp_get(key_bytes)
+    ledger = get_ledger(_ledger_id(request))
+    value = ledger.qp_get(key_bytes)
     if value is None:
         raise HTTPException(404, "Key not found.")
     return {"key": key, "value": value}
@@ -474,7 +510,8 @@ def store_if_salient(req: SalienceReq, request: Request, _: str = Depends(requir
             "t": req.timestamp or time.time(),
             "score": score,
         })
-        request.app.state.ledger.qp_put(key_bytes, payload)
+        ledger = get_ledger(_ledger_id(request))
+        ledger.qp_put(key_bytes, payload)
         return {
             "stored": True,
             "key": key_bytes.hex(),
@@ -499,7 +536,8 @@ def exact_memory(key: str, request: Request, _: str = Depends(require_key)):
     except ValueError:
         raise HTTPException(422, "Key must be a 16-byte hex string.")
 
-    value = request.app.state.ledger.qp_get(key_bytes)
+    ledger = get_ledger(_ledger_id(request))
+    value = ledger.qp_get(key_bytes)
     if value is None:
         raise HTTPException(404, "Key not found.")
 

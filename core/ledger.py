@@ -12,9 +12,9 @@ from .flow_rule_bridge import validate_prime_sequence
 from core.storage import open_db as open_rocksdb, rocksdb_available
 
 DATA_ROOT = Path(os.getenv("LEDGER_DATA_PATH", "./data"))
-EVENT_LOG = os.getenv("EVENT_LOG_PATH", str(DATA_ROOT / "event.log"))
-FACTORS_DB = os.getenv("FACTORS_DB_PATH", str(DATA_ROOT / "factors"))
-POSTINGS_DB = os.getenv("POSTINGS_DB_PATH", str(DATA_ROOT / "postings"))
+EVENT_LOG = Path(os.getenv("EVENT_LOG_PATH", str(DATA_ROOT / "event.log")))
+FACTORS_DB = Path(os.getenv("FACTORS_DB_PATH", str(DATA_ROOT / "factors")))
+POSTINGS_DB = Path(os.getenv("POSTINGS_DB_PATH", str(DATA_ROOT / "postings")))
 PRIME_ARRAY: Tuple[int, ...] = (2, 3, 5, 7, 11, 13, 17, 19)
 QP_PREFIX = b"qp:"
 
@@ -91,9 +91,18 @@ def _iter_prefix(db, prefix: bytes):
 
 
 class Ledger:
-    def __init__(self):
-        self.fdb = _open_db(FACTORS_DB)
-        self.pdb = _open_db(POSTINGS_DB)
+    def __init__(
+        self,
+        *,
+        event_log_path: str | os.PathLike[str] | None = None,
+        factors_path: str | os.PathLike[str] | None = None,
+        postings_path: str | os.PathLike[str] | None = None,
+    ):
+        self.event_log_path = Path(event_log_path or EVENT_LOG)
+        self.factors_path = Path(factors_path or FACTORS_DB)
+        self.postings_path = Path(postings_path or POSTINGS_DB)
+        self.fdb = _open_db(str(self.factors_path))
+        self.pdb = _open_db(str(self.postings_path))
         self.log = self._open_event_log()
 
     def close(self):
@@ -122,9 +131,8 @@ class Ledger:
             key_bytes = key[len(QP_PREFIX):] if key.startswith(QP_PREFIX) else key
             yield key_bytes, value
 
-    @staticmethod
-    def _open_event_log():
-        log_path = Path(EVENT_LOG)
+    def _open_event_log(self):
+        log_path = self.event_log_path
         try:
             log_path.parent.mkdir(parents=True, exist_ok=True)
             return open(log_path, "ab", buffering=0)

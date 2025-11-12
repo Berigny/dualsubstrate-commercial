@@ -9,3 +9,4 @@ COPY . .
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8080 50051
 CMD ["python", "-u", "-m", "api.grpc_server"]
+
