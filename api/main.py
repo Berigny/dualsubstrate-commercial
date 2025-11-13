@@ -1,9 +1,9 @@
 """
 DualSubstrate API – ledger + Metatron-star flow-rule enforcement
 """
-from fastapi import FastAPI, HTTPException, Depends, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Depends, Query, Request, WebSocket, WebSocketDisconnect, Body
 from pydantic import BaseModel, conint
-from typing import Callable, Dict, List, Literal, Set, Tuple
+from typing import Any, Callable, Dict, List, Literal, Set, Tuple
 import json
 import os
 import threading
@@ -153,6 +153,17 @@ class LedgerCreate(BaseModel):
     ledger_id: str
 
 
+class LawfulnessUpdate(BaseModel):
+    value: conint(ge=0, le=3)
+
+
+class MetricsUpdate(BaseModel):
+    dE: float | None = None
+    dDrift: float | None = None
+    dRetention: float | None = None
+    K: float | None = None
+
+
 # ---------- helpers ----------
 Node = Literal[0, 1, 2, 3, 4, 5, 6, 7]
 PRIME_IDX = {p: idx for idx, p in enumerate(PRIME_ARRAY)}
@@ -202,6 +213,20 @@ def _legalise_transition(src_node: int, dst_node: int) -> Tuple[bool, bool]:
     return (True, True)
 
 
+def _ledger_response(ledger: Ledger, entity: str) -> Dict[str, Any]:
+    doc = ledger.entity_document(entity)
+    return {
+        "entity": entity,
+        "version": doc.get("version", "1.0"),
+        "tier": doc.get("tier", "S1"),
+        "lawfulness": doc.get("lawfulness"),
+        "meta": doc.get("meta", {}),
+        "slots": doc.get("slots", {}),
+        "r_metrics": doc.get("r_metrics", {}),
+        "factors": annotate_factors(ledger.factors(entity)),
+    }
+
+
 # ---------- FastAPI ----------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -242,6 +267,82 @@ def create_ledger(payload: LedgerCreate, _: str = Depends(require_key)):
         raise HTTPException(422, "ledger_id must not be empty")
     get_ledger(ledger_id)
     return {"ledger_id": ledger_id}
+
+
+@app.put("/ledger/s1")
+def upsert_s1_slots(
+    request: Request,
+    entity: str = Query(..., description="Entity identifier"),
+    payload: Dict[str, Dict[str, Any]] = Body(..., description="S1 facets keyed by prime"),
+    _: str = Depends(require_key),
+):
+    ledger = get_ledger(_ledger_id(request))
+    try:
+        ledger.update_s1_slots(entity, payload)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return _ledger_response(ledger, entity)
+
+
+@app.put("/ledger/body")
+def upsert_body_slot(
+    request: Request,
+    entity: str = Query(...),
+    prime: int = Query(..., ge=2),
+    payload: Dict[str, Any] = Body(...),
+    _: str = Depends(require_key),
+):
+    ledger = get_ledger(_ledger_id(request))
+    try:
+        ledger.update_body_slot(entity, prime, payload)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return _ledger_response(ledger, entity)
+
+
+@app.put("/ledger/s2")
+def upsert_s2_slots(
+    request: Request,
+    entity: str = Query(...),
+    payload: Dict[str, Dict[str, Any]] = Body(...),
+    _: str = Depends(require_key),
+):
+    ledger = get_ledger(_ledger_id(request))
+    try:
+        ledger.update_s2_slots(entity, payload)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return _ledger_response(ledger, entity)
+
+
+@app.patch("/ledger/lawfulness")
+def patch_lawfulness(
+    request: Request,
+    payload: LawfulnessUpdate,
+    entity: str = Query(...),
+    _: str = Depends(require_key),
+):
+    ledger = get_ledger(_ledger_id(request))
+    try:
+        ledger.update_lawfulness(entity, payload.value)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return _ledger_response(ledger, entity)
+
+
+@app.patch("/ledger/metrics")
+def patch_metrics(
+    request: Request,
+    entity: str = Query(...),
+    payload: MetricsUpdate = Body(...),
+    _: str = Depends(require_key),
+):
+    ledger = get_ledger(_ledger_id(request))
+    metrics = {k: v for k, v in payload.dict().items() if v is not None}
+    if not metrics:
+        raise HTTPException(422, "Provide at least one metric field.")
+    ledger.update_r_metrics(entity, metrics)
+    return _ledger_response(ledger, entity)
 
 
 # ---------- existing endpoints ----------
@@ -393,8 +494,7 @@ def ledger_snapshot(entity: str, request: Request, _: str = Depends(require_key)
     """Return the persisted exponent vector for ``entity``."""
 
     ledger = get_ledger(_ledger_id(request))
-    factors = ledger.factors(entity)
-    return {"entity": entity, "factors": annotate_factors(factors)}
+    return _ledger_response(ledger, entity)
 
 
 # ---------- new traverse endpoint (unchanged logic) ----------

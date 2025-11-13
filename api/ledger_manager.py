@@ -20,12 +20,15 @@ def get_ledger(ledger_id: str) -> Ledger:
     base.mkdir(parents=True, exist_ok=True)
     factors = base / "factors"
     postings = base / "postings"
+    slots = base / "slots"
     factors.parent.mkdir(parents=True, exist_ok=True)
     postings.parent.mkdir(parents=True, exist_ok=True)
+    slots.parent.mkdir(parents=True, exist_ok=True)
     ledger = Ledger(
         event_log_path=base / "event.log",
         factors_path=factors,
         postings_path=postings,
+        slots_path=slots,
     )
     _LEDGERS[ledger_id] = ledger
     return ledger

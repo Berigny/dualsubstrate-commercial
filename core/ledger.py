@@ -1,6 +1,7 @@
 """Append-only event log + RocksDB indices
 Events: (entity_id, prime, delta_k, timestamp)."""
 import json
+import hashlib
 import os
 import tempfile
 import time
@@ -15,8 +16,11 @@ DATA_ROOT = Path(os.getenv("LEDGER_DATA_PATH", "./data"))
 EVENT_LOG = Path(os.getenv("EVENT_LOG_PATH", str(DATA_ROOT / "event.log")))
 FACTORS_DB = Path(os.getenv("FACTORS_DB_PATH", str(DATA_ROOT / "factors")))
 POSTINGS_DB = Path(os.getenv("POSTINGS_DB_PATH", str(DATA_ROOT / "postings")))
+SLOTS_DB = Path(os.getenv("SLOTS_DB_PATH", str(DATA_ROOT / "slots")))
 PRIME_ARRAY: Tuple[int, ...] = (2, 3, 5, 7, 11, 13, 17, 19)
 QP_PREFIX = b"qp:"
+SLOTS_PREFIX = b"slots:"
+DEFAULT_LAWFULNESS = int(os.getenv("LEDGER_LAWFULNESS_DEFAULT", "3"))
 
 
 HAS_ROCKS = rocksdb_available()
@@ -97,18 +101,22 @@ class Ledger:
         event_log_path: str | os.PathLike[str] | None = None,
         factors_path: str | os.PathLike[str] | None = None,
         postings_path: str | os.PathLike[str] | None = None,
+        slots_path: str | os.PathLike[str] | None = None,
     ):
         self.event_log_path = Path(event_log_path or EVENT_LOG)
         self.factors_path = Path(factors_path or FACTORS_DB)
         self.postings_path = Path(postings_path or POSTINGS_DB)
+        self.slots_path = Path(slots_path or SLOTS_DB)
         self.fdb = _open_db(str(self.factors_path))
         self.pdb = _open_db(str(self.postings_path))
+        self.sdb = _open_db(str(self.slots_path))
         self.log = self._open_event_log()
 
     def close(self):
         """Close the database connections."""
         self.fdb.close()
         self.pdb.close()
+        self.sdb.close()
         self.log.close()
 
     @staticmethod
@@ -130,6 +138,143 @@ class Ledger:
         for key, value in _iter_prefix(self.fdb, stored_prefix):
             key_bytes = key[len(QP_PREFIX):] if key.startswith(QP_PREFIX) else key
             yield key_bytes, value
+
+    # ---------- structured slots ----------
+    @staticmethod
+    def _slots_key(entity: str) -> bytes:
+        return SLOTS_PREFIX + entity.encode()
+
+    @staticmethod
+    def _default_slots_doc(entity: str) -> Dict:
+        return {
+            "entity": entity,
+            "version": "1.1",
+            "tier": "S1",
+            "lawfulness": DEFAULT_LAWFULNESS,
+            "meta": {},
+            "slots": {
+                "S1": {},
+                "S2": {},
+                "body": {},
+            },
+            "r_metrics": {
+                "dE": 0,
+                "dDrift": 0,
+                "dRetention": 0,
+                "K": 0.0,
+            },
+        }
+
+    def _load_slots_doc(self, entity: str) -> Dict:
+        raw = self.sdb.get(self._slots_key(entity))
+        if not raw:
+            return self._default_slots_doc(entity)
+        if isinstance(raw, bytes):
+            return json.loads(raw.decode())
+        return json.loads(raw)
+
+    def _store_slots_doc(self, entity: str, doc: Dict) -> None:
+        payload = json.dumps(doc, separators=(",", ":")).encode()
+        self.sdb.put(self._slots_key(entity), payload)
+
+    def entity_document(self, entity: str) -> Dict:
+        """Return the structured S1/S2/body document for ``entity``."""
+        return self._load_slots_doc(entity)
+
+    @staticmethod
+    def _ensure_prime(value: int) -> bool:
+        if value < 2:
+            return False
+        if value in (2, 3):
+            return True
+        if value % 2 == 0:
+            return False
+        d = 3
+        while d * d <= value:
+            if value % d == 0:
+                return False
+            d += 2
+        return True
+
+    def update_s1_slots(self, entity: str, facets: Dict[str, Dict]) -> Dict:
+        doc = self._load_slots_doc(entity)
+        if doc.get("lawfulness", DEFAULT_LAWFULNESS) < 1:
+            raise ValueError("Entity lawfulness forbids S1 updates (requires >=1).")
+        allowed_primes = {"2", "3", "5", "7"}
+        slots = doc["slots"].setdefault("S1", {})
+        for prime_key, payload in facets.items():
+            if prime_key not in allowed_primes:
+                raise ValueError(f"Prime {prime_key} is not a valid S1 slot.")
+            if not isinstance(payload, dict):
+                raise ValueError(f"S1 facet for prime {prime_key} must be an object.")
+            write_targets = payload.get("write_primes") or payload.get("write_primes".upper())
+            if not write_targets:
+                raise ValueError(f"S1 facet {prime_key} requires write_primes.")
+            cleaned_targets = []
+            for candidate in write_targets:
+                try:
+                    prime = int(candidate)
+                except (TypeError, ValueError):
+                    raise ValueError(f"write_primes must be integers (got {candidate!r}).") from None
+                if prime < 23 or not self._ensure_prime(prime):
+                    raise ValueError(f"write_primes entries must be primes >=23 (got {prime}).")
+                cleaned_targets.append(prime)
+            payload["write_primes"] = cleaned_targets
+            slots[prime_key] = payload
+        self._store_slots_doc(entity, doc)
+        return doc
+
+    def update_body_slot(self, entity: str, prime: int, body: Dict) -> Dict:
+        doc = self._load_slots_doc(entity)
+        if doc.get("lawfulness", DEFAULT_LAWFULNESS) < 2:
+            raise ValueError("Entity lawfulness forbids body updates (requires >=2).")
+        if prime < 23 or not self._ensure_prime(prime):
+            raise ValueError("Body writes must target primes >=23.")
+        if not isinstance(body, dict):
+            raise ValueError("Body payload must be an object.")
+        content = body.get("text") or body.get("value")
+        if not isinstance(content, str) or not content.strip():
+            raise ValueError("Body payload requires non-empty text.")
+        digest = hashlib.sha256(content.encode()).hexdigest()
+        slot = {
+            "content_type": body.get("content_type", "text/plain"),
+            "text": content,
+            "hash": f"sha256:{digest}",
+            "updated_at": int(time.time() * 1000),
+        }
+        doc["slots"].setdefault("body", {})[str(prime)] = slot
+        self._store_slots_doc(entity, doc)
+        return doc
+
+    def update_s2_slots(self, entity: str, facets: Dict[str, Dict]) -> Dict:
+        doc = self._load_slots_doc(entity)
+        if doc.get("lawfulness", DEFAULT_LAWFULNESS) < 3:
+            raise ValueError("Entity lawfulness forbids S2 updates (requires >=3).")
+        allowed_primes = {"11", "13", "17", "19"}
+        slots = doc["slots"].setdefault("S2", {})
+        for prime_key, payload in facets.items():
+            if prime_key not in allowed_primes:
+                raise ValueError(f"Prime {prime_key} is not a valid S2 slot.")
+            if not isinstance(payload, dict):
+                raise ValueError(f"S2 facet for prime {prime_key} must be an object.")
+            slots[prime_key] = payload
+        doc["tier"] = "S2" if facets else doc.get("tier", "S1")
+        self._store_slots_doc(entity, doc)
+        return doc
+
+    def update_lawfulness(self, entity: str, value: int) -> Dict:
+        if value < 0 or value > 3:
+            raise ValueError("Lawfulness must be between 0 and 3.")
+        doc = self._load_slots_doc(entity)
+        doc["lawfulness"] = int(value)
+        self._store_slots_doc(entity, doc)
+        return doc
+
+    def update_r_metrics(self, entity: str, metrics: Dict[str, float]) -> Dict:
+        doc = self._load_slots_doc(entity)
+        doc.setdefault("r_metrics", {}).update(metrics)
+        self._store_slots_doc(entity, doc)
+        return doc
 
     def _open_event_log(self):
         log_path = self.event_log_path

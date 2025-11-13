@@ -30,11 +30,13 @@ def temp_db():
     os.environ["EVENT_LOG_PATH"] = str(path_tmp / "event.log")
     os.environ["FACTORS_DB_PATH"] = str(path_tmp / "factors")
     os.environ["POSTINGS_DB_PATH"] = str(path_tmp / "postings")
+    os.environ["SLOTS_DB_PATH"] = str(path_tmp / "slots")
 
     core_ledger.DATA_ROOT = path_tmp
     core_ledger.EVENT_LOG = os.environ["EVENT_LOG_PATH"]
     core_ledger.FACTORS_DB = os.environ["FACTORS_DB_PATH"]
     core_ledger.POSTINGS_DB = os.environ["POSTINGS_DB_PATH"]
+    core_ledger.SLOTS_DB = os.environ["SLOTS_DB_PATH"]
     yield tmp
     # cleanup
     shutil.rmtree(tmp, ignore_errors=True)
@@ -42,6 +44,7 @@ def temp_db():
     os.environ.pop("EVENT_LOG_PATH", None)
     os.environ.pop("FACTORS_DB_PATH", None)
     os.environ.pop("POSTINGS_DB_PATH", None)
+    os.environ.pop("SLOTS_DB_PATH", None)
 
 @pytest.fixture(scope="function")
 def client(temp_db):
