@@ -264,6 +264,30 @@ class Ledger:
         doc = self._load_slots_doc(entity)
         if doc.get("lawfulness", DEFAULT_LAWFULNESS) < 3:
             raise ValueError("Entity lawfulness forbids S2 updates (requires >=3).")
+        metrics = doc.get("r_metrics") or {}
+        required_metrics = ("dE", "dDrift", "dRetention", "K")
+        missing = [name for name in required_metrics if metrics.get(name) is None]
+        if missing:
+            missing_list = ", ".join(sorted(missing))
+            raise ValueError(
+                "S2 updates require r_metrics values for: "
+                f"{missing_list}. Provide metrics before writing facets."
+            )
+        try:
+            delta_e = float(metrics["dE"])
+            delta_drift = float(metrics["dDrift"])
+            delta_retention = float(metrics["dRetention"])
+            delta_k = float(metrics["K"])
+        except (TypeError, ValueError) as exc:
+            raise ValueError("S2 updates require numeric r_metrics values.") from exc
+        if delta_e >= 0:
+            raise ValueError(f"S2 updates require ΔE < 0 (got {delta_e}).")
+        if delta_drift >= 0:
+            raise ValueError(f"S2 updates require ΔDrift < 0 (got {delta_drift}).")
+        if delta_retention <= 0:
+            raise ValueError(f"S2 updates require ΔRetention > 0 (got {delta_retention}).")
+        if delta_k < 0:
+            raise ValueError(f"S2 updates require ΔK ≥ 0 (got {delta_k}).")
         allowed_primes = {"11", "13", "17", "19"}
         slots = doc["slots"].setdefault("S2", {})
         for prime_key, payload in facets.items():
