@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import dataclass
-from typing import Any, Dict, List, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Sequence, Tuple
 
 
 @dataclass
@@ -88,6 +88,23 @@ class InferenceStore:
             state.readouts[int(prime)] = row
             _normalise(row)
         _normalise(state.x)
+        self._store(entity, state)
+        return state
+
+    def mutate_state(
+        self, entity: str, mutator: Callable[[InferenceSnapshot], None]
+    ) -> InferenceSnapshot:
+        """Apply ``mutator`` to the stored snapshot and persist the result.
+
+        The mutator receives a mutable :class:`InferenceSnapshot` representing the
+        current latent state. Implementations can modify the vector ``x`` and the
+        readout rows in-place. The updated snapshot is normalised according to the
+        mutator's logic—callers are responsible for maintaining invariants such as
+        orthogonality.
+        """
+
+        state = self._load(entity)
+        mutator(state)
         self._store(entity, state)
         return state
 

@@ -384,7 +384,7 @@ def anchor(req: AnchorReq, request: Request, _: str = Depends(require_key)):
         lawful_factors.append((f.prime, f.delta))
 
     # write to ledger
-    ledger.anchor(req.entity, lawful_factors)
+    cycle = ledger.anchor(req.entity, lawful_factors)
     _persist_memory_entry(req, ledger, timestamp=ts)
     if req.text:
         request.app.state.recall_store[req.entity] = req.text
@@ -393,6 +393,7 @@ def anchor(req: AnchorReq, request: Request, _: str = Depends(require_key)):
         "edges": edges,
         "centroid_at_write": centroid,
         "timestamp": ts,
+        "cycle": cycle.as_dict() if cycle else None,
     }
 
 
