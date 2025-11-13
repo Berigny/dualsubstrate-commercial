@@ -236,9 +236,27 @@ async def serve() -> None:
     dualsubstrate_health = DualSubstrateHealthService()
     _add_health_to_server(dualsubstrate_health, server)  # type: ignore[arg-type]
 
+    # Backwards compatibility: earlier releases exported the health service as
+    # ``dualsubstrate.v1.Health`` instead of ``HealthService``.  The generated
+    # helpers no longer register that alias, so add a manual generic handler to
+    # keep the legacy probe working (used by fly checks and CI pipelines).
+    legacy_health_handler = grpc.unary_unary_rpc_method_handler(
+        dualsubstrate_health.Check,
+        request_deserializer=ds_health_pb.CheckRequest.FromString,
+        response_serializer=ds_health_pb.CheckResponse.SerializeToString,
+    )
+    server.add_generic_rpc_handlers(
+        (
+            grpc.method_handlers_generic_handler(
+                "dualsubstrate.v1.Health", {"Check": legacy_health_handler}
+            ),
+        )
+    )
+
     service_names = [
         pb.DESCRIPTOR.services_by_name["DualSubstrateService"].full_name,
         ds_health_pb.DESCRIPTOR.services_by_name["HealthService"].full_name,
+        "dualsubstrate.v1.Health",
     ]
     reflection.enable_server_reflection(
         service_names + [reflection.SERVICE_NAME], server

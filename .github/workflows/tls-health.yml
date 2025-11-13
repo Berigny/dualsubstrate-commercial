@@ -43,11 +43,13 @@ jobs:
         run: |
           go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
           echo "$HOME/go/bin" >> $GITHUB_PATH
-      - name: Custom health probe
+      - name: Smoke test – REST /schema endpoint
+        env:
+          DUALSUBSTRATE_API_KEY: ${{ secrets.DUALSUBSTRATE_API_KEY }}
         run: |
-          grpcurl -plaintext -import-path ./proto \
-            -proto dualsubstrate/v1/health.proto \
-            localhost:50051 dualsubstrate.v1.Health/Check
+          curl -f -H "x-api-key: ${DUALSUBSTRATE_API_KEY}" \
+               https://dualsubstrate-commercial.fly.dev/schema?entity=demo_user \
+               > /dev/null && echo "✅ API up" || (echo "❌ API down" && exit 1)
       - name: gRPC health check
         run: |
           grpcurl -plaintext \

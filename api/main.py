@@ -345,6 +345,16 @@ def patch_metrics(
     return _ledger_response(ledger, entity)
 
 
+@app.get("/inference/state")
+def get_inference_state(
+    request: Request,
+    entity: str = Query(...),
+    _: str = Depends(require_key),
+):
+    ledger = get_ledger(_ledger_id(request))
+    return ledger.inference_snapshot(entity)
+
+
 # ---------- existing endpoints ----------
 @app.post("/anchor")
 @limiter.limit("100/minute")
