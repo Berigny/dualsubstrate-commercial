@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
 from checksum import merkle_root
-from .flow_rule_bridge import validate_prime_sequence
+from .automorphism import CycleAutomorphismService, CycleResult
+from .flow_rule_bridge import FlowRuleViolation, validate_prime_sequence
 from .inference import InferenceStore
 from core.storage import open_db as open_rocksdb, rocksdb_available
 
@@ -117,6 +118,9 @@ class Ledger:
         self.idb = _open_db(str(self.inference_path))
         self.log = self._open_event_log()
         self.inference_store = InferenceStore(self.idb, primes=PRIME_ARRAY)
+        self.automorphism = CycleAutomorphismService(
+            self.inference_store, primes=PRIME_ARRAY
+        )
 
     def close(self):
         """Close the database connections."""
@@ -299,16 +303,51 @@ class Ledger:
         factors: List[Tuple[int,int]],
         *,
         update_inference: bool = True,
-    ):
+    ) -> CycleResult:
         ts = int(time.time()*1000)
-        check = validate_prime_sequence([p for p, _ in factors]) if factors else None
-        via_flags = check.via_centroid if check else []
+        primes_only = [p for p, _ in factors]
+        via_flags: List[bool] = []
+        if primes_only:
+            try:
+                check = validate_prime_sequence(primes_only)
+            except FlowRuleViolation:
+                check = None
+                via_flags = self.automorphism.derive_via_flags(primes_only)
+            else:
+                via_flags = check.via_centroid
+        cycle = (
+            self.automorphism.enforce(
+                entity,
+                primes_only,
+                via_flags,
+                mutate_state=update_inference,
+            )
+            if factors
+            else self.automorphism.empty_cycle()
+        )
         if update_inference and factors:
             self.inference_store.update(entity, [(p, dk) for p, dk in factors])
         for idx, (p, dk) in enumerate(factors):
             # 1) append event
             via_c = via_flags[idx] if idx < len(via_flags) else False
-            evt = json.dumps({"e": entity, "p": p, "d": dk, "ts": ts, "via_c": via_c})
+            centroid_digit = (
+                cycle.steps[idx].centroid
+                if idx < len(cycle.steps)
+                else cycle.final_centroid
+            )
+            evt = json.dumps(
+                {
+                    "e": entity,
+                    "p": p,
+                    "d": dk,
+                    "ts": ts,
+                    "via_c": via_c,
+                    "c": centroid_digit,
+                    "cycle_index": cycle.steps[idx].cycle_index
+                    if idx < len(cycle.steps)
+                    else cycle.flips,
+                }
+            )
             self.log.write((evt+"\n").encode())
             # 2) update entity→factors
             old = self._get_factor(entity, p)
@@ -316,6 +355,7 @@ class Ledger:
             self.fdb.put(f"{entity}:{p}".encode(), str(new).encode())
             # 3) update prime→postings
             self.pdb.put(f"{p}:{entity}".encode(), str(new).encode())
+        return cycle
 
     def _get_factor(self, entity: str, p: int) -> int:
         v = self.fdb.get(f"{entity}:{p}".encode())
@@ -338,8 +378,8 @@ class Ledger:
             if delta != 0:
                 deltas.append((prime, delta))
         if deltas:
-            self.inference_store.update(entity, deltas)
-            self.anchor(entity, deltas, update_inference=False)
+            return self.anchor(entity, deltas, update_inference=True)
+        return self.automorphism.empty_cycle()
 
     def query(self, primes: List[int]) -> List[Tuple[str,int]]:
         """return (entity, weight) pairs that divide ALL primes"""
