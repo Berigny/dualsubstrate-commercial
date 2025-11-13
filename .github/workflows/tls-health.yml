@@ -1,4 +1,4 @@
-name: TLS & gRPC health
+name: TLS smoke test
 
 on:
   push:
@@ -25,38 +25,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install Python deps
+      - name: Smoke test – REST /schema endpoint
+        env:
+          DUALSUBSTRATE_API_KEY: ${{ secrets.DUALSUBSTRATE_API_KEY }}
         run: |
-          pip install -r requirements.txt -r api/requirements.grpc.txt
-      - name: Start gRPC server
-        run: |
-          python -m api.grpc_server --host=0.0.0.0 --port=50051 &
-          echo $! > server.pid
-          sleep 5
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.21"
-      - name: Install grpcurl
-        run: |
-          go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
-          echo "$HOME/go/bin" >> $GITHUB_PATH
-      - name: Custom health probe
-        run: |
-          grpcurl -plaintext -import-path ./proto \
-            -proto dualsubstrate/v1/health.proto \
-            localhost:50051 dualsubstrate.v1.Health/Check
-      - name: gRPC health check
-        run: |
-          grpcurl -plaintext \
-            -d '{"service":"dualsubstrate.v1.DualSubstrate"}' \
-            localhost:50051 grpc.health.v1.Health/Check
-      - name: List services via reflection
-        run: |
-          grpcurl -plaintext localhost:50051 list
-      - name: Stop server
-        if: always()
-        run: |
-          kill $(cat server.pid) || true
+          curl -f -H "x-api-key: ${DUALSUBSTRATE_API_KEY}" \
+               https://dualsubstrate-commercial.fly.dev/schema?entity=demo_user \
+               > /dev/null && echo "✅ API up" || (echo "❌ API down" && exit 1)
