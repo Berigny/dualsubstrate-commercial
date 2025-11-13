@@ -6,7 +6,7 @@ import os
 import tempfile
 import time
 from pathlib import Path
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, Iterator, List, Tuple
 
 from checksum import merkle_root
 from .automorphism import CycleAutomorphismService, CycleResult
@@ -28,6 +28,93 @@ DEFAULT_LAWFULNESS = int(os.getenv("LEDGER_LAWFULNESS_DEFAULT", "3"))
 
 
 HAS_ROCKS = rocksdb_available()
+
+
+_SEARCH_MODE_CONFIG: Dict[str, Dict[str, object]] = {
+    "s1": {
+        "slots": ("S1",),
+        "prime_weights": {2: 1.0, 3: 0.95, 5: 0.9, 7: 0.85},
+        "default_weight": 0.75,
+    },
+    "s2": {
+        "slots": ("S2",),
+        "prime_weights": {11: 0.8, 13: 0.75, 17: 0.7, 19: 0.65},
+        "default_weight": 0.6,
+    },
+    "body": {
+        "slots": ("body",),
+        "prime_weights": {},
+        "default_weight": 0.7,
+    },
+    "all": {
+        "slots": ("S1", "S2", "body"),
+        "prime_weights": {
+            2: 1.0,
+            3: 0.95,
+            5: 0.9,
+            7: 0.85,
+            11: 0.8,
+            13: 0.75,
+            17: 0.7,
+            19: 0.65,
+        },
+        "default_weight": 0.6,
+    },
+}
+
+
+def _iter_strings(value) -> Iterator[str]:
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for item in value.values():
+            yield from _iter_strings(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _iter_strings(item)
+
+
+def _make_snippet(text: str, needle: str, radius: int = 40) -> str:
+    lowered = text.lower()
+    idx = lowered.find(needle)
+    if idx == -1:
+        excerpt = text[: radius * 2]
+        if len(text) > radius * 2:
+            return f"{excerpt}…"
+        return excerpt
+    start = max(0, idx - radius)
+    end = min(len(text), idx + len(needle) + radius)
+    prefix = "…" if start > 0 else ""
+    suffix = "…" if end < len(text) else ""
+    return f"{prefix}{text[start:end]}{suffix}"
+
+
+def _extract_entity_from_slot_key(raw_key: bytes | str) -> str:
+    if isinstance(raw_key, bytes):
+        suffix = raw_key[len(SLOTS_PREFIX) :]
+        return suffix.decode(errors="ignore")
+    if isinstance(raw_key, str):
+        prefix = SLOTS_PREFIX.decode()
+        if raw_key.startswith(prefix):
+            return raw_key[len(prefix) :]
+        return raw_key
+    return str(raw_key)
+
+
+def _decode_slots_document(raw_value) -> Dict | None:
+    if isinstance(raw_value, bytes):
+        payload = raw_value.decode()
+    elif isinstance(raw_value, str):
+        payload = raw_value
+    else:
+        return None
+    try:
+        doc = json.loads(payload)
+    except json.JSONDecodeError:
+        return None
+    if isinstance(doc, dict):
+        return doc
+    return None
 
 
 class _InMemoryIterator:
@@ -194,6 +281,104 @@ class Ledger:
     def entity_document(self, entity: str) -> Dict:
         """Return the structured S1/S2/body document for ``entity``."""
         return self._load_slots_doc(entity)
+
+    def search_slots(self, query: str, mode: str, *, limit: int = 50) -> List[Dict[str, object]]:
+        """Return ranked slot/body matches for ``query`` using ``mode`` weights."""
+
+        normalized_query = (query or "").strip()
+        if not normalized_query:
+            return []
+
+        normalized_mode = (mode or "").strip().lower()
+        config = _SEARCH_MODE_CONFIG.get(normalized_mode)
+        if config is None:
+            raise ValueError(f"Unsupported search mode: {mode}")
+
+        needle = normalized_query.lower()
+        slots_to_scan = tuple(config.get("slots", ()))
+        prime_weights = config.get("prime_weights", {})
+        default_weight = float(config.get("default_weight", 0.5))
+        results: Dict[Tuple[str, int], Dict[str, object]] = {}
+
+        for raw_key, raw_value in _iter_prefix(self.sdb, SLOTS_PREFIX):
+            entity = _extract_entity_from_slot_key(raw_key)
+            doc = _decode_slots_document(raw_value)
+            if not doc:
+                continue
+            slots = doc.get("slots")
+            if not isinstance(slots, dict):
+                continue
+
+            for slot_name in slots_to_scan:
+                bucket = slots.get(slot_name, {})
+                if slot_name == "body":
+                    if not isinstance(bucket, dict):
+                        continue
+                    for prime_key, body_payload in bucket.items():
+                        try:
+                            prime = int(prime_key)
+                        except (TypeError, ValueError):
+                            continue
+                        if not isinstance(body_payload, dict):
+                            continue
+                        text_value = body_payload.get("text") or body_payload.get("value")
+                        if not isinstance(text_value, str):
+                            continue
+                        lowered = text_value.lower()
+                        matches = lowered.count(needle)
+                        if matches == 0:
+                            continue
+                        weight = float(prime_weights.get(prime, default_weight))
+                        score = weight * matches
+                        snippet = _make_snippet(text_value, needle)
+                        key = (entity, prime)
+                        payload = {
+                            "entity": entity,
+                            "prime": prime,
+                            "score": round(score, 6),
+                            "snippet": snippet,
+                        }
+                        existing = results.get(key)
+                        if not existing or payload["score"] > existing["score"]:
+                            results[key] = payload
+                        elif existing and payload["score"] == existing["score"] and len(snippet) < len(existing["snippet"]):
+                            results[key] = payload
+                else:
+                    if not isinstance(bucket, dict):
+                        continue
+                    for prime_key, slot_payload in bucket.items():
+                        try:
+                            prime = int(prime_key)
+                        except (TypeError, ValueError):
+                            continue
+                        weight = float(prime_weights.get(prime, default_weight))
+                        for candidate in _iter_strings(slot_payload):
+                            text_value = candidate.strip()
+                            if not text_value:
+                                continue
+                            lowered = text_value.lower()
+                            matches = lowered.count(needle)
+                            if matches == 0:
+                                continue
+                            score = weight * matches
+                            snippet = _make_snippet(text_value, needle)
+                            key = (entity, prime)
+                            payload = {
+                                "entity": entity,
+                                "prime": prime,
+                                "score": round(score, 6),
+                                "snippet": snippet,
+                            }
+                            existing = results.get(key)
+                            if not existing or payload["score"] > existing["score"]:
+                                results[key] = payload
+                            elif existing and payload["score"] == existing["score"] and len(snippet) < len(existing["snippet"]):
+                                results[key] = payload
+
+        ranked = sorted(results.values(), key=lambda row: row["score"], reverse=True)
+        if limit and limit > 0:
+            return ranked[:limit]
+        return ranked
 
     @staticmethod
     def _ensure_prime(value: int) -> bool:
