@@ -538,6 +538,21 @@ def ledger_snapshot(entity: str, request: Request, _: str = Depends(require_key)
     return _ledger_response(ledger, entity)
 
 
+@app.get("/search")
+def search_entities(
+    request: Request,
+    q: str = Query(..., min_length=1, description="Query string"),
+    mode: str = Query("all", description="Search weighting mode"),
+    _: str = Depends(require_key),
+):
+    ledger = get_ledger(_ledger_id(request))
+    try:
+        results = ledger.search_slots(q, mode)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {"results": results}
+
+
 # ---------- new traverse endpoint (unchanged logic) ----------
 @app.post("/traverse", response_model=TraverseResp)
 @limiter.limit("300/minute")

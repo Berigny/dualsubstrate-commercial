@@ -92,6 +92,41 @@ class MemoryAnchor:
         body = response.json()
         return body.get("checksum", "")
 
+    def search(self, query: str, mode: str = "all") -> list[dict[str, object]]:
+        """Query structured slots/body shards for ``query`` using ``mode`` weights."""
+
+        response = self._session.get(
+            f"{self._base}/search",
+            headers=self._headers,
+            params={"q": query, "mode": mode},
+            timeout=float(os.getenv("DUALSUBSTRATE_HTTP_TIMEOUT", "10")),
+        )
+        response.raise_for_status()
+        payload = response.json()
+        results: list[dict[str, object]] = []
+        for row in payload.get("results", []):
+            if not isinstance(row, dict):
+                continue
+            try:
+                prime = int(row.get("prime"))
+            except (TypeError, ValueError):
+                continue
+            snippet = row.get("snippet", "")
+            score_raw = row.get("score", 0.0)
+            try:
+                score = float(score_raw)
+            except (TypeError, ValueError):
+                score = 0.0
+            results.append(
+                {
+                    "entity": str(row.get("entity", "")),
+                    "prime": prime,
+                    "score": score,
+                    "snippet": str(snippet),
+                }
+            )
+        return results
+
     def inference_state(self, entity: str) -> dict[str, object]:
         """Return the latent state vector and readout rows for ``entity``."""
 
