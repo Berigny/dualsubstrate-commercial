@@ -12,6 +12,7 @@ from checksum import merkle_root
 from .automorphism import CycleAutomorphismService, CycleResult
 from .flow_rule_bridge import FlowRuleViolation, validate_prime_sequence
 from .inference import InferenceStore
+from .valuation import EnergyBreakdown, mixed_energy
 from core.storage import open_db as open_rocksdb, rocksdb_available
 
 DATA_ROOT = Path(os.getenv("LEDGER_DATA_PATH", "./data"))
@@ -118,6 +119,8 @@ class Ledger:
         self.idb = _open_db(str(self.inference_path))
         self.log = self._open_event_log()
         self.inference_store = InferenceStore(self.idb, primes=PRIME_ARRAY)
+        self._energy_lambda = float(os.getenv("LEDGER_ENERGY_LAMBDA", "0.5"))
+        self._last_energy: Dict[str, EnergyBreakdown] = {}
         self.automorphism = CycleAutomorphismService(
             self.inference_store, primes=PRIME_ARRAY
         )
@@ -325,6 +328,15 @@ class Ledger:
             if factors
             else self.automorphism.empty_cycle()
         )
+        if factors:
+            self._last_energy[entity] = self._compute_energy(entity, factors)
+        else:
+            self._last_energy[entity] = EnergyBreakdown(
+                total=0.0,
+                continuous=0.0,
+                discrete=0.0,
+                lambda_weight=self._energy_lambda,
+            )
         if update_inference and factors:
             self.inference_store.update(entity, [(p, dk) for p, dk in factors])
         for idx, (p, dk) in enumerate(factors):
@@ -380,6 +392,24 @@ class Ledger:
         if deltas:
             return self.anchor(entity, deltas, update_inference=True)
         return self.automorphism.empty_cycle()
+
+    def _compute_energy(
+        self, entity: str, deltas: List[Tuple[int, int]]
+    ) -> EnergyBreakdown:
+        """Evaluate ``E_t`` for ``entity`` using the current inference state."""
+
+        snapshot = self.inference_store.snapshot(entity)
+        return mixed_energy(
+            snapshot.x,
+            snapshot.readouts,
+            deltas,
+            lambda_weight=self._energy_lambda,
+        )
+
+    def last_energy(self, entity: str) -> EnergyBreakdown | None:
+        """Return the most recent energy measurement for ``entity``."""
+
+        return self._last_energy.get(entity)
 
     def query(self, primes: List[int]) -> List[Tuple[str,int]]:
         """return (entity, weight) pairs that divide ALL primes"""

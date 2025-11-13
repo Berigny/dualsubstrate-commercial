@@ -5,6 +5,7 @@ from fastapi import FastAPI, HTTPException, Depends, Query, Request, WebSocket, 
 from pydantic import BaseModel, conint
 from typing import Any, Callable, Dict, List, Literal, Set, Tuple
 import json
+import logging
 import os
 import threading
 import time
@@ -21,6 +22,7 @@ from slowapi import _rate_limit_exceeded_handler
 from s1_s2_memory import S1Salience, deterministic_key
 from api.prime_schema import annotate_factors, annotate_prime_list, get_schema_response
 from api.ledger_manager import get_ledger, close_all, list_ledgers
+from api.metrics import record_anchor_energy
 
 # ---------- flow-rule bridge ----------
 _ALLOWED_DIRECT = {(1, 2), (5, 6), (3, 0), (7, 4), (1, 0)}
@@ -49,6 +51,10 @@ tokens_saved = 0
 total_calls = 0
 duplicate_calls = 0
 _seen_signatures: Set[str] = set()
+_last_anchor_energy: Dict[str, object] | None = None
+
+
+logger = logging.getLogger(__name__)
 
 
 # ---------- models ----------
@@ -365,6 +371,7 @@ def anchor(req: AnchorReq, request: Request, _: str = Depends(require_key)):
     3. write only lawful deltas
     """
     ledger = get_ledger(_ledger_id(request))
+    global _last_anchor_energy
     ts = int(time.time() * 1000)
     centroid = _centroid_now()
     edges: List[Edge] = []
@@ -385,6 +392,28 @@ def anchor(req: AnchorReq, request: Request, _: str = Depends(require_key)):
 
     # write to ledger
     cycle = ledger.anchor(req.entity, lawful_factors)
+    energy = ledger.last_energy(req.entity)
+    energy_payload: Dict[str, object] | None = None
+    if energy is not None:
+        energy_payload = {"entity": req.entity, **energy.as_payload()}
+        logger.info(
+            "E_t computed",
+            extra={
+                "entity": req.entity,
+                "E_t": energy.total,
+                "continuous": energy.continuous,
+                "discrete_weighted": energy.weighted_discrete,
+                "lambda": energy.lambda_weight,
+            },
+        )
+        record_anchor_energy(
+            req.entity, energy.total, energy.continuous, energy.weighted_discrete
+        )
+        with _metrics_lock:
+            _last_anchor_energy = energy_payload
+    else:
+        with _metrics_lock:
+            _last_anchor_energy = None
     _persist_memory_entry(req, ledger, timestamp=ts)
     if req.text:
         request.app.state.recall_store[req.entity] = req.text
@@ -394,6 +423,7 @@ def anchor(req: AnchorReq, request: Request, _: str = Depends(require_key)):
         "centroid_at_write": centroid,
         "timestamp": ts,
         "cycle": cycle.as_dict() if cycle else None,
+        "energy": energy_payload,
     }
 
 
@@ -567,9 +597,14 @@ def metrics(_: str = Depends(require_key)):
         saved = tokens_saved
         total = total_calls
         dup = duplicate_calls
+        last_energy = dict(_last_anchor_energy) if _last_anchor_energy else None
 
     integrity = 1.0 if total == 0 else max(0.0, 1 - (dup / total))
-    return {"tokens_deduped": saved, "ledger_integrity": integrity}
+    return {
+        "tokens_deduped": saved,
+        "ledger_integrity": integrity,
+        "last_anchor_energy": last_energy,
+    }
 
 
 @app.post("/qp/{key}")
