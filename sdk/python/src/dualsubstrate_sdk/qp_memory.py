@@ -76,6 +76,26 @@ class MemoryAnchor:
         body = response.json()
         return body.get("checksum", "")
 
+    def inference_state(self, entity: str) -> dict[str, object]:
+        """Return the latent state vector and readout rows for ``entity``."""
+
+        response = self._session.get(
+            f"{self._base}/inference/state",
+            headers=self._headers,
+            params={"entity": entity},
+            timeout=float(os.getenv("DUALSUBSTRATE_HTTP_TIMEOUT", "10")),
+        )
+        response.raise_for_status()
+        payload = response.json()
+        rows = {
+            int(prime): [float(value) for value in vector]
+            for prime, vector in payload.get("R", {}).items()
+        }
+        return {
+            "x": [float(v) for v in payload.get("x", [])],
+            "R": rows,
+        }
+
     # --- framework adapters ---------------------------------------------
     def as_langchain_tool(self):
         """Expose a LangChain Tool for querying entity projections."""
