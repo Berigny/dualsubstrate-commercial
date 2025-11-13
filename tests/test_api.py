@@ -1,4 +1,5 @@
 import math
+import textwrap
 
 import pytest
 
@@ -69,3 +70,39 @@ def test_anchor_cycle_report(client):
     assert last_step["prime"] == PRIME_ARRAY[1]
     assert last_step["permutation"] == "swap_pair"
     assert last_step["rotor"] == "quarter_turn"
+
+
+def test_anchor_persists_full_memory_text(client):
+    text = textwrap.dedent(
+        """
+        Light for the million – Religion of God and not of man.
+        Philosophy demands honest doubt before belief can carry authority.
+        Knowledge gathered by experiment restores harmony; superstition corrodes it.
+        """
+    ).strip()
+    payload = {
+        "entity": "berigny",
+        "factors": [{"prime": PRIME_ARRAY[0], "delta": 3}],
+        "text": text,
+    }
+
+    response = client.post(
+        "/anchor",
+        headers={"Authorization": "Bearer mvp-secret"},
+        json=payload,
+    )
+    assert response.status_code == 200
+
+    mem_response = client.get(
+        "/memories",
+        headers={"Authorization": "Bearer mvp-secret"},
+        params={"entity": "berigny", "limit": 1},
+    )
+    assert mem_response.status_code == 200
+    history = mem_response.json()
+    assert history, "expected the transcript to be persisted"
+
+    latest = history[0]
+    assert latest["text"] == text
+    assert latest["timestamp"] > 0
+    assert latest["prime_annotations"][0]["prime"] == PRIME_ARRAY[0]

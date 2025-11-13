@@ -34,7 +34,21 @@ class MemoryAnchor:
         self._base = self.base_url.rstrip("/")
 
     # --- raw helpers -----------------------------------------------------
-    def anchor(self, entity: str, factors: Sequence[tuple[int, int]]) -> dict:
+    def anchor(
+        self,
+        entity: str,
+        factors: Sequence[tuple[int, int]],
+        *,
+        text: str | None = None,
+    ) -> dict:
+        """Append ``factors`` for ``entity`` and optionally persist ``text``.
+
+        The FastAPI ``/anchor`` endpoint accepts an optional transcript payload in
+        addition to the exponent deltas.  When ``text`` is provided we forward it
+        so the server can mirror the request into the Qp column family.  Existing
+        callers that do not supply ``text`` continue to behave identically.
+        """
+
         payload = {
             "entity": entity,
             "factors": [
@@ -42,6 +56,8 @@ class MemoryAnchor:
                 for prime, delta in factors
             ],
         }
+        if text is not None:
+            payload["text"] = text
         response = self._session.post(
             f"{self._base}/anchor",
             headers=self._headers,
