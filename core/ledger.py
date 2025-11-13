@@ -10,6 +10,7 @@ from typing import Dict, Iterable, List, Tuple
 
 from checksum import merkle_root
 from .flow_rule_bridge import validate_prime_sequence
+from .inference import InferenceStore
 from core.storage import open_db as open_rocksdb, rocksdb_available
 
 DATA_ROOT = Path(os.getenv("LEDGER_DATA_PATH", "./data"))
@@ -17,6 +18,7 @@ EVENT_LOG = Path(os.getenv("EVENT_LOG_PATH", str(DATA_ROOT / "event.log")))
 FACTORS_DB = Path(os.getenv("FACTORS_DB_PATH", str(DATA_ROOT / "factors")))
 POSTINGS_DB = Path(os.getenv("POSTINGS_DB_PATH", str(DATA_ROOT / "postings")))
 SLOTS_DB = Path(os.getenv("SLOTS_DB_PATH", str(DATA_ROOT / "slots")))
+INFERENCE_DB = Path(os.getenv("INFERENCE_DB_PATH", str(DATA_ROOT / "inference")))
 PRIME_ARRAY: Tuple[int, ...] = (2, 3, 5, 7, 11, 13, 17, 19)
 QP_PREFIX = b"qp:"
 SLOTS_PREFIX = b"slots:"
@@ -102,21 +104,26 @@ class Ledger:
         factors_path: str | os.PathLike[str] | None = None,
         postings_path: str | os.PathLike[str] | None = None,
         slots_path: str | os.PathLike[str] | None = None,
+        inference_path: str | os.PathLike[str] | None = None,
     ):
         self.event_log_path = Path(event_log_path or EVENT_LOG)
         self.factors_path = Path(factors_path or FACTORS_DB)
         self.postings_path = Path(postings_path or POSTINGS_DB)
         self.slots_path = Path(slots_path or SLOTS_DB)
+        self.inference_path = Path(inference_path or INFERENCE_DB)
         self.fdb = _open_db(str(self.factors_path))
         self.pdb = _open_db(str(self.postings_path))
         self.sdb = _open_db(str(self.slots_path))
+        self.idb = _open_db(str(self.inference_path))
         self.log = self._open_event_log()
+        self.inference_store = InferenceStore(self.idb, primes=PRIME_ARRAY)
 
     def close(self):
         """Close the database connections."""
         self.fdb.close()
         self.pdb.close()
         self.sdb.close()
+        self.idb.close()
         self.log.close()
 
     @staticmethod
@@ -286,10 +293,18 @@ class Ledger:
             fallback.parent.mkdir(parents=True, exist_ok=True)
             return open(fallback, "ab", buffering=0)
 
-    def anchor(self, entity: str, factors: List[Tuple[int,int]]):
+    def anchor(
+        self,
+        entity: str,
+        factors: List[Tuple[int,int]],
+        *,
+        update_inference: bool = True,
+    ):
         ts = int(time.time()*1000)
         check = validate_prime_sequence([p for p, _ in factors]) if factors else None
         via_flags = check.via_centroid if check else []
+        if update_inference and factors:
+            self.inference_store.update(entity, [(p, dk) for p, dk in factors])
         for idx, (p, dk) in enumerate(factors):
             # 1) append event
             via_c = via_flags[idx] if idx < len(via_flags) else False
@@ -323,7 +338,8 @@ class Ledger:
             if delta != 0:
                 deltas.append((prime, delta))
         if deltas:
-            self.anchor(entity, deltas)
+            self.inference_store.update(entity, deltas)
+            self.anchor(entity, deltas, update_inference=False)
 
     def query(self, primes: List[int]) -> List[Tuple[str,int]]:
         """return (entity, weight) pairs that divide ALL primes"""
@@ -352,6 +368,11 @@ class Ledger:
             value = v if isinstance(v, bytes) else str(v).encode()
             leaves.append(k + value)
         return merkle_root(leaves)
+
+    def inference_snapshot(self, entity: str) -> Dict[str, object]:
+        """Return the persisted inference state for ``entity``."""
+
+        return self.inference_store.snapshot(entity).as_dict()
 
 
 _INMEM_APPEND_LOG: List[Tuple[str, int, bytes, bytes, Dict[str, str]]] = []

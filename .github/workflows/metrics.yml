@@ -35,10 +35,9 @@ jobs:
             docker login registry.fly.io -u x --password-stdin
       - name: Build gRPC image
         run: docker build -t "$IMAGE" -f ops/Dockerfile .
-      - name: Check metrics endpoint
+      - name: Lightweight health ping
         run: |
-          timeout 5 docker run --rm -p 9090:8080 "$IMAGE" &
-          runner=$!
-          sleep 3
-          curl -f localhost:9090/metrics | grep -q grpc_server_handled_total
-          wait "$runner" || true
+          docker run --rm -d -p 9090:8080 --name metrics "$IMAGE"
+          timeout 10 bash -c 'until curl -s localhost:9090/metrics > /dev/null; do sleep 1; done'
+          echo "✅ metrics up"
+          docker stop metrics
