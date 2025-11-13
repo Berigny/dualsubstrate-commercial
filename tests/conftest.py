@@ -16,6 +16,7 @@ os.environ["DUALSUBSTRATE_API_KEY"] = "mvp-secret"
 os.environ["FASTAPI_ROOT"] = "http://localhost:8080"
 os.environ["TESTING"] = "True"
 os.environ["API_KEYS"] = "mvp-secret"
+os.environ["LEDGER_ENERGY_LAMBDA"] = "0.5"
 
 from api.main import app as real_app  # noqa: E402  (import after sys.path tweak)
 from core import ledger as core_ledger
