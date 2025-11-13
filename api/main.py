@@ -321,6 +321,25 @@ def upsert_s2_slots(
     return _ledger_response(ledger, entity)
 
 
+@app.get("/search")
+def search(
+    request: Request,
+    q: str = Query(..., description="Query string to match across ledger slots."),
+    mode: str = Query(
+        "all",
+        description="Search scope: s1, s2, body, or all",
+    ),
+    limit: int = Query(50, ge=1, le=200, description="Maximum number of results to return."),
+    _: str = Depends(require_key),
+):
+    ledger = get_ledger(_ledger_id(request))
+    try:
+        results = ledger.search_slots(q, mode, limit=limit)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {"query": q, "mode": mode, "results": results}
+
+
 @app.patch("/ledger/lawfulness")
 def patch_lawfulness(
     request: Request,
