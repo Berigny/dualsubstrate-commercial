@@ -5,6 +5,7 @@ import hashlib
 import os
 import tempfile
 import time
+from collections import deque
 from pathlib import Path
 from typing import Dict, Iterable, Iterator, List, Tuple
 
@@ -45,6 +46,11 @@ _SEARCH_MODE_CONFIG: Dict[str, Dict[str, object]] = {
         "slots": ("body",),
         "prime_weights": {},
         "default_weight": 0.7,
+    },
+    "recall": {
+        "slots": ("body",),
+        "prime_weights": {},
+        "default_weight": 0.75,
     },
     "all": {
         "slots": ("S1", "S2", "body"),
@@ -663,6 +669,34 @@ class Ledger:
         """Return the persisted inference state for ``entity``."""
 
         return self.inference_store.snapshot(entity).as_dict()
+
+    def inference_history(self, entity: str, *, limit: int = 10) -> List[Dict[str, object]]:
+        """Return the most recent inference events for ``entity`` from the log."""
+
+        if limit <= 0:
+            return []
+
+        history: "deque[Dict[str, object]]" = deque(maxlen=int(limit))
+
+        try:
+            with open(self.event_log_path, "r", encoding="utf-8") as handle:
+                for line in handle:
+                    record_raw = line.strip()
+                    if not record_raw:
+                        continue
+                    try:
+                        payload = json.loads(record_raw)
+                    except json.JSONDecodeError:
+                        continue
+                    if payload.get("e") != entity:
+                        continue
+                    history.append(payload)
+        except FileNotFoundError:
+            return []
+        except OSError:
+            return []
+
+        return list(reversed(history))
 
 
 _INMEM_APPEND_LOG: List[Tuple[str, int, bytes, bytes, Dict[str, str]]] = []

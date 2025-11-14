@@ -140,3 +140,121 @@ def test_retrieve_prefers_persisted_body(client):
     assert retrieve_response.status_code == 200
     payload = retrieve_response.json()
     assert payload == {"entity": entity, "text": body_text}
+
+
+def test_traverse_get_returns_paths(client):
+    entity = "traverse-demo"
+    payload = {
+        "entity": entity,
+        "factors": [{"prime": PRIME_ARRAY[0], "delta": 2}],
+    }
+
+    anchor_response = client.post(
+        "/anchor",
+        headers={"Authorization": "Bearer mvp-secret"},
+        json=payload,
+    )
+    assert anchor_response.status_code == 200
+
+    response = client.get(
+        "/traverse",
+        headers={"Authorization": "Bearer mvp-secret"},
+        params={"entity": entity, "include_metadata": True, "limit": 4},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["supported"] is True
+    assert body["origin"] == PRIME_ARRAY[0]
+    assert "metadata" in body
+    paths = body.get("paths", [])
+    assert paths, "Expected at least one traversal path"
+    first = paths[0]
+    assert first["prime"] == PRIME_ARRAY[0]
+    assert first["weight"] == 2
+    assert first["direction"] == "forward"
+
+
+def test_inference_state_with_history(client):
+    entity = "history-demo"
+    for delta in (1, 2):
+        response = client.post(
+            "/anchor",
+            headers={"Authorization": "Bearer mvp-secret"},
+            json={
+                "entity": entity,
+                "factors": [{"prime": PRIME_ARRAY[0], "delta": delta}],
+            },
+        )
+        assert response.status_code == 200
+
+    response = client.get(
+        "/inference/state",
+        headers={"Authorization": "Bearer mvp-secret"},
+        params={"entity": entity, "include_history": True, "limit": 2},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    history = payload.get("history")
+    assert isinstance(history, list)
+    assert 1 <= len(history) <= 2
+    assert history[0]["e"] == entity
+
+
+def test_search_allows_entity_parameter(client):
+    entity = "search-demo"
+    body_payload = {
+        "entity": entity,
+        "prime": 29,
+        "body": "Meeting recap for entity search-demo",
+        "metadata": {"kind": "note"},
+    }
+
+    put_response = client.put(
+        "/ledger/body",
+        headers={"Authorization": "Bearer mvp-secret"},
+        json=body_payload,
+    )
+    assert put_response.status_code == 200
+
+    response = client.get(
+        "/search",
+        headers={"Authorization": "Bearer mvp-secret"},
+        params={"entity": entity, "q": "meeting", "mode": "body", "limit": 5},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data.get("entity") == entity
+    results = data.get("results", [])
+    assert any(row.get("entity") == entity for row in results)
+
+
+def test_search_supports_recall_mode(client):
+    entity = "recall-demo"
+    body_payload = {
+        "entity": entity,
+        "prime": 31,
+        "body": "Recall specific meeting summary",
+        "metadata": {"kind": "memory"},
+    }
+
+    put_response = client.put(
+        "/ledger/body",
+        headers={"Authorization": "Bearer mvp-secret"},
+        json=body_payload,
+    )
+    assert put_response.status_code == 200
+
+    response = client.get(
+        "/search",
+        headers={"Authorization": "Bearer mvp-secret"},
+        params={"entity": entity, "q": "meeting", "mode": "recall", "limit": 3},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload.get("entity") == entity
+    hits = payload.get("results", [])
+    assert any(row.get("entity") == entity for row in hits)
