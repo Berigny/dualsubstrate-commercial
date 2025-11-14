@@ -293,17 +293,57 @@ def upsert_s1_slots(
 @app.put("/ledger/body")
 def upsert_body_slot(
     request: Request,
-    entity: str = Query(...),
-    prime: int = Query(..., ge=2),
+    entity: str | None = Query(None),
+    prime: int | None = Query(None, ge=2),
     payload: Dict[str, Any] = Body(...),
     _: str = Depends(require_key),
 ):
     ledger = get_ledger(_ledger_id(request))
+
+    payload_entity = (payload.get("entity") or entity or "").strip()
+    if not payload_entity:
+        raise HTTPException(422, "entity must be provided in the query or body payload")
+
+    prime_value = payload.get("prime", prime)
+    if prime_value is None:
+        raise HTTPException(422, "prime must be provided in the query or body payload")
     try:
-        ledger.update_body_slot(entity, prime, payload)
+        prime_int = int(prime_value)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(422, "prime must be an integer") from exc
+
+    text_value: str | None = None
+    for field in ("body", "text", "value"):
+        candidate = payload.get(field)
+        if isinstance(candidate, str) and candidate.strip():
+            text_value = candidate
+            break
+    if text_value is None:
+        raise HTTPException(422, "Body payload requires non-empty text.")
+
+    metadata_raw = payload.get("metadata")
+    if metadata_raw is None:
+        metadata_obj: Dict[str, Any] | None = None
+    elif isinstance(metadata_raw, dict):
+        metadata_obj = metadata_raw
+    else:
+        raise HTTPException(422, "metadata must be an object when provided")
+
+    slot_payload: Dict[str, Any] = {}
+    for key, value in payload.items():
+        if key in {"entity", "prime", "body", "text", "value", "metadata"}:
+            continue
+        slot_payload[key] = value
+
+    slot_payload["text"] = text_value
+    if metadata_obj is not None:
+        slot_payload["metadata"] = metadata_obj
+
+    try:
+        ledger.update_body_slot(payload_entity, prime_int, slot_payload)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
-    return _ledger_response(ledger, entity)
+    return _ledger_response(ledger, payload_entity)
 
 
 @app.put("/ledger/s2")
@@ -321,6 +361,60 @@ def upsert_s2_slots(
     return _ledger_response(ledger, entity)
 
 
+# ---------- traversal facade ----------
+@app.get("/traverse")
+@limiter.limit("300/minute")
+def traverse_paths(
+    request: Request,
+    entity: str = Query(..., description="Entity identifier to traverse"),
+    origin: int | None = Query(None, ge=2, description="Optional origin prime"),
+    limit: int = Query(8, ge=1, le=64, description="Maximum traversal records to return"),
+    depth: int = Query(1, ge=1, le=32, description="Traversal depth hint"),
+    direction: str | None = Query(None, description="Traversal direction preference"),
+    include_metadata: bool = Query(False, description="Include entity metadata block"),
+    _: str = Depends(require_key),
+):
+    ledger = get_ledger(_ledger_id(request))
+
+    factors = ledger.factors(entity)
+    non_zero = [prime for prime, weight in factors if weight != 0]
+    annotations = annotate_prime_list(non_zero)
+    annotation_map = {item.get("prime"): item for item in annotations if isinstance(item, dict)}
+
+    direction_hint = (direction or "forward").strip().lower() or "forward"
+    paths: List[Dict[str, Any]] = []
+    for prime, weight in factors:
+        if weight == 0:
+            continue
+        record: Dict[str, Any] = {
+            "prime": prime,
+            "weight": weight,
+            "depth": depth,
+            "direction": direction_hint,
+        }
+        annotation = annotation_map.get(prime)
+        if annotation:
+            record["annotation"] = annotation
+        paths.append(record)
+        if len(paths) >= limit:
+            break
+
+    metadata_block: Dict[str, Any] = {}
+    if include_metadata:
+        doc = ledger.entity_document(entity)
+        meta = doc.get("meta") if isinstance(doc, dict) else None
+        metadata_block = meta if isinstance(meta, dict) else {}
+
+    origin_prime = origin if origin is not None else (paths[0]["prime"] if paths else None)
+
+    return {
+        "origin": origin_prime,
+        "paths": paths,
+        "metadata": metadata_block,
+        "supported": True,
+    }
+
+
 @app.get("/search")
 def search(
     request: Request,
@@ -330,14 +424,20 @@ def search(
         description="Search scope: s1, s2, body, or all",
     ),
     limit: int = Query(50, ge=1, le=200, description="Maximum number of results to return."),
+    entity: str | None = Query(None, description="Optional entity scope override."),
     _: str = Depends(require_key),
 ):
     ledger = get_ledger(_ledger_id(request))
+    target_entity = (entity or request.headers.get(LEDGER_HEADER) or "").strip()
     try:
         results = ledger.search_slots(q, mode, limit=limit)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
-    return {"query": q, "mode": mode, "results": results}
+
+    payload = {"query": q, "mode": mode, "results": results}
+    if target_entity:
+        payload["entity"] = target_entity
+    return payload
 
 
 @app.patch("/ledger/lawfulness")
@@ -373,11 +473,20 @@ def patch_metrics(
 @app.get("/inference/state")
 def get_inference_state(
     request: Request,
-    entity: str = Query(...),
+    entity: str | None = Query(None, description="Entity identifier"),
+    include_history: bool = Query(False, description="Include recent inference history."),
+    limit: int = Query(10, ge=1, le=100, description="Maximum history items to return."),
     _: str = Depends(require_key),
 ):
     ledger = get_ledger(_ledger_id(request))
-    return ledger.inference_snapshot(entity)
+    target_entity = (entity or request.headers.get(LEDGER_HEADER) or "").strip()
+    if not target_entity:
+        raise HTTPException(422, "entity must be provided via query parameter or header")
+
+    snapshot = ledger.inference_snapshot(target_entity)
+    if include_history:
+        snapshot["history"] = ledger.inference_history(target_entity, limit=limit)
+    return snapshot
 
 
 # ---------- existing endpoints ----------
