@@ -435,13 +435,24 @@ class Ledger:
         if not isinstance(content, str) or not content.strip():
             raise ValueError("Body payload requires non-empty text.")
         digest = hashlib.sha256(content.encode()).hexdigest()
-        slot = {
-            "content_type": body.get("content_type", "text/plain"),
-            "text": content,
-            "hash": f"sha256:{digest}",
-            "updated_at": int(time.time() * 1000),
-        }
-        doc["slots"].setdefault("body", {})[str(prime)] = slot
+        body_slots = doc["slots"].setdefault("body", {})
+        prime_key = str(prime)
+        existing_slot = body_slots.get(prime_key, {})
+        merged_slot = dict(existing_slot)
+
+        for key, value in body.items():
+            if key == "value":
+                continue
+            if key == "provenance" and value is None:
+                merged_slot.pop("provenance", None)
+            else:
+                merged_slot[key] = value
+
+        merged_slot["content_type"] = merged_slot.get("content_type", "text/plain")
+        merged_slot["text"] = content
+        merged_slot["hash"] = f"sha256:{digest}"
+        merged_slot["updated_at"] = int(time.time() * 1000)
+        body_slots[prime_key] = merged_slot
         self._store_slots_doc(entity, doc)
         return doc
 
