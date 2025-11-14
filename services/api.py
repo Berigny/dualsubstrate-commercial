@@ -152,13 +152,40 @@ class ApiService:
             ) from exc
         except DualSubstrateError as exc:
             breadcrumbs["status_code"] = exc.status_code or 500
+            detail_text = (exc.detail or str(exc) or "").strip()
+
+            endpoint_missing = False
+            if exc.status_code in {404, 405}:
+                endpoint_missing = True
+            elif detail_text:
+                lowered = detail_text.lower()
+                if "missing authentication token" in lowered:
+                    endpoint_missing = True
+
+            if endpoint_missing:
+                message = (
+                    "Traversal endpoint is unavailable on the backend. "
+                    "Redeploy the DualSubstrate API with GET /traverse support."
+                )
+                self.logger.error(
+                    "Traverse endpoint missing on backend", extra={"breadcrumbs": breadcrumbs}
+                )
+                raise ApiServiceError(
+                    "traverse_endpoint_missing",
+                    message,
+                    breadcrumbs=breadcrumbs,
+                    status_code=exc.status_code,
+                    detail=detail_text or None,
+                    cause=exc,
+                ) from exc
+
             self.logger.error("Traverse request failed", extra={"breadcrumbs": breadcrumbs})
             raise ApiServiceError(
                 "backend_error",
-                exc.detail or str(exc),
+                detail_text or str(exc),
                 breadcrumbs=breadcrumbs,
                 status_code=exc.status_code,
-                detail=exc.detail,
+                detail=detail_text or None,
                 cause=exc,
             ) from exc
         except Exception as exc:  # pragma: no cover - safety net

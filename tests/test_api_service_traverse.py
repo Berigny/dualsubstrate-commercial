@@ -147,3 +147,28 @@ def test_traverse_wraps_generic_client_error():
     assert err.code == "backend_error"
     assert err.status_code == 503
     assert err.detail == "Internal server error"
+
+
+@pytest.mark.parametrize(
+    "status, detail",
+    [
+        (404, "Not Found"),
+        (405, "Method Not Allowed"),
+        (403, "Missing Authentication Token"),
+    ],
+)
+def test_traverse_reports_missing_endpoint(status, detail):
+    error = DualSubstrateError(
+        "Unexpected status code",
+        status_code=status,
+        detail=detail,
+    )
+    service, _ = _service(error=error)
+
+    with pytest.raises(ApiServiceError) as excinfo:
+        service.traverse(entity="demo")
+
+    err = excinfo.value
+    assert err.code == "traverse_endpoint_missing"
+    assert "GET /traverse" in err.message
+    assert err.detail == detail
