@@ -159,6 +159,21 @@ class LedgerCreate(BaseModel):
     ledger_id: str
 
 
+class LedgerSlotPayload(BaseModel):
+    prime: int
+    value: float | int | None = None
+    body_prime: int
+    title: str | None = None
+    tags: List[str] | None = None
+    metadata: Dict[str, Any] | None = None
+    score: float | None = None
+    timestamp: int | None = None
+
+
+class LedgerSlotsPayload(BaseModel):
+    entity: str | None = None
+    slots: List[LedgerSlotPayload]
+
 class LawfulnessUpdate(BaseModel):
     value: conint(ge=0, le=3)
 
@@ -298,18 +313,41 @@ def create_ledger(payload: LedgerCreate, _: str = Depends(require_key)):
 
 
 @app.put("/ledger/s1")
-def upsert_s1_slots(
+def put_ledger_s1(
+    payload: LedgerSlotsPayload,
     request: Request,
-    entity: str = Query(..., description="Entity identifier"),
-    payload: Dict[str, Dict[str, Any]] = Body(..., description="S1 facets keyed by prime"),
     _: str = Depends(require_key),
 ):
+    entity = (payload.entity or "").strip()
+    if not entity:
+        fallback_header = request.headers.get("X-Entity", "").strip()
+        fallback_query = request.query_params.get("entity", "").strip()
+        entity = fallback_header or fallback_query
+    if not entity:
+        raise HTTPException(status_code=422, detail="entity is required")
+
+    slots = payload.slots or []
+    if not slots:
+        return {"updated": 0}
+
+    normalized: List[Dict[str, Any]] = []
+    for slot in slots:
+        data = slot.model_dump(exclude_none=True)
+        prime = data.get("prime")
+        body_prime = data.get("body_prime")
+        if not isinstance(prime, int) or not isinstance(body_prime, int):
+            raise HTTPException(status_code=422, detail="prime and body_prime are required")
+        value = data.get("value")
+        if value is None:
+            data["value"] = 1
+        normalized.append(data)
+
     ledger = get_ledger(_ledger_id(request))
     try:
-        ledger.update_s1_slots(entity, payload)
+        updated = ledger.write_s1_slots(entity, normalized)
     except ValueError as exc:
-        raise HTTPException(422, str(exc)) from exc
-    return _ledger_response(ledger, entity)
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"updated": updated}
 
 
 @app.put("/ledger/body")
@@ -577,6 +615,15 @@ def anchor(req: AnchorReq, request: Request, _: str = Depends(require_key)):
             for payload in s1_slots.values():
                 if not isinstance(payload, dict):
                     continue
+                body_candidate = payload.get("body_prime")
+                if body_candidate is not None:
+                    try:
+                        normalized_body = int(body_candidate)
+                    except (TypeError, ValueError):
+                        normalized_body = None
+                    else:
+                        if normalized_body >= 23:
+                            target_primes.add(normalized_body)
                 write_targets = payload.get("write_primes")
                 if not isinstance(write_targets, list):
                     continue

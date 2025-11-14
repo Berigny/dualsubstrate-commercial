@@ -21,15 +21,25 @@ def _seed_search_content(client):
     entity_primary = "s1-alpha"
     entity_secondary = "s1-beta"
     resp = client.put(
-        f"/ledger/s1?entity={entity_primary}",
+        "/ledger/s1",
         headers=headers,
-        json={"2": {"title": "Aurora aurora beacon", "write_primes": [23]}},
+        json={
+            "entity": entity_primary,
+            "slots": [
+                {"prime": 2, "body_prime": 23, "title": "Aurora aurora beacon"}
+            ],
+        },
     )
     assert resp.status_code == 200, resp.text
     resp = client.put(
-        f"/ledger/s1?entity={entity_secondary}",
+        "/ledger/s1",
         headers=headers,
-        json={"5": {"summary": "Aurora insight", "write_primes": [29]}},
+        json={
+            "entity": entity_secondary,
+            "slots": [
+                {"prime": 5, "body_prime": 29, "title": "Aurora insight"}
+            ],
+        },
     )
     assert resp.status_code == 200, resp.text
 
