@@ -7,7 +7,7 @@ import tempfile
 import time
 from collections import deque
 from pathlib import Path
-from typing import Dict, Iterable, Iterator, List, Tuple
+from typing import Any, Dict, Iterable, Iterator, List, Tuple
 
 from checksum import merkle_root
 from .automorphism import CycleAutomorphismService, CycleResult
@@ -401,21 +401,131 @@ class Ledger:
             d += 2
         return True
 
-    def update_s1_slots(self, entity: str, facets: Dict[str, Dict]) -> Dict:
+    def write_s1_slots(self, entity: str, slots: List[Dict[str, Any]]) -> int:
         doc = self._load_slots_doc(entity)
         if doc.get("lawfulness", DEFAULT_LAWFULNESS) < 1:
             raise ValueError("Entity lawfulness forbids S1 updates (requires >=1).")
-        allowed_primes = {"2", "3", "5", "7"}
-        slots = doc["slots"].setdefault("S1", {})
+
+        allowed_primes = {2, 3, 5, 7}
+        bucket = doc["slots"].setdefault("S1", {})
+        updated = 0
+
+        for slot in slots:
+            if not isinstance(slot, dict):
+                raise ValueError("Each S1 slot must be an object.")
+
+            try:
+                prime = int(slot.get("prime"))
+            except (TypeError, ValueError) as exc:
+                raise ValueError("prime must be an integer") from exc
+            if prime not in allowed_primes:
+                raise ValueError(f"Prime {prime} is not a valid S1 slot.")
+
+            try:
+                body_prime = int(slot.get("body_prime"))
+            except (TypeError, ValueError) as exc:
+                raise ValueError("body_prime must be an integer") from exc
+            if body_prime < 23 or not self._ensure_prime(body_prime):
+                raise ValueError("body_prime must be a prime >=23.")
+
+            value_raw = slot.get("value", 1)
+            try:
+                numeric_value = float(value_raw)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("value must be numeric.") from exc
+            if isinstance(value_raw, int) and not isinstance(value_raw, bool):
+                value = value_raw
+            elif isinstance(value_raw, float):
+                value = value_raw
+            else:
+                value = numeric_value
+
+            title = slot.get("title")
+            if title is not None and not isinstance(title, str):
+                raise ValueError("title must be a string.")
+
+            tags = slot.get("tags")
+            if tags is not None:
+                if not isinstance(tags, list) or any(not isinstance(item, str) for item in tags):
+                    raise ValueError("tags must be a list of strings.")
+
+            metadata = slot.get("metadata")
+            if metadata is not None and not isinstance(metadata, dict):
+                raise ValueError("metadata must be an object.")
+
+            score_raw = slot.get("score")
+            if score_raw is not None:
+                try:
+                    score_value = float(score_raw)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("score must be numeric.") from exc
+            else:
+                score_value = None
+
+            timestamp_raw = slot.get("timestamp")
+            if timestamp_raw is not None:
+                try:
+                    timestamp_value = int(timestamp_raw)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("timestamp must be an integer.") from exc
+            else:
+                timestamp_value = None
+
+            write_targets = slot.get("write_primes")
+            if write_targets is None:
+                cleaned_targets = [body_prime]
+            else:
+                if not isinstance(write_targets, list):
+                    raise ValueError("write_primes must be a list of integers.")
+                cleaned_targets = []
+                for candidate in write_targets:
+                    try:
+                        candidate_prime = int(candidate)
+                    except (TypeError, ValueError) as exc:
+                        raise ValueError(
+                            f"write_primes must be integers (got {candidate!r})."
+                        ) from exc
+                    if candidate_prime < 23 or not self._ensure_prime(candidate_prime):
+                        raise ValueError(
+                            f"write_primes entries must be primes >=23 (got {candidate_prime})."
+                        )
+                    cleaned_targets.append(candidate_prime)
+                if body_prime not in cleaned_targets:
+                    cleaned_targets.append(body_prime)
+            slot_payload: Dict[str, Any] = {
+                "prime": prime,
+                "value": value,
+                "body_prime": body_prime,
+                "write_primes": cleaned_targets,
+            }
+            if title is not None:
+                slot_payload["title"] = title
+            if tags is not None:
+                slot_payload["tags"] = list(tags)
+            if metadata is not None:
+                slot_payload["metadata"] = dict(metadata)
+            if score_value is not None:
+                slot_payload["score"] = score_value
+            if timestamp_value is not None:
+                slot_payload["timestamp"] = timestamp_value
+
+            bucket[str(prime)] = slot_payload
+            updated += 1
+
+        if updated:
+            doc["tier"] = "S1"
+            self._store_slots_doc(entity, doc)
+        return updated
+
+    def update_s1_slots(self, entity: str, facets: Dict[str, Dict]) -> Dict:
+        slots: List[Dict[str, Any]] = []
         for prime_key, payload in facets.items():
-            if prime_key not in allowed_primes:
-                raise ValueError(f"Prime {prime_key} is not a valid S1 slot.")
             if not isinstance(payload, dict):
                 raise ValueError(f"S1 facet for prime {prime_key} must be an object.")
             write_targets = payload.get("write_primes") or payload.get("write_primes".upper())
             if not write_targets:
                 raise ValueError(f"S1 facet {prime_key} requires write_primes.")
-            cleaned_targets = []
+            cleaned_targets: List[int] = []
             for candidate in write_targets:
                 try:
                     prime = int(candidate)
@@ -424,10 +534,25 @@ class Ledger:
                 if prime < 23 or not self._ensure_prime(prime):
                     raise ValueError(f"write_primes entries must be primes >=23 (got {prime}).")
                 cleaned_targets.append(prime)
-            payload["write_primes"] = cleaned_targets
-            slots[prime_key] = payload
-        self._store_slots_doc(entity, doc)
-        return doc
+            try:
+                prime_int = int(prime_key)
+            except (TypeError, ValueError):
+                raise ValueError(f"Prime {prime_key} is not a valid S1 slot.") from None
+            slots.append(
+                {
+                    "prime": prime_int,
+                    "body_prime": cleaned_targets[0],
+                    "value": payload.get("value", 1),
+                    "title": payload.get("title"),
+                    "tags": payload.get("tags"),
+                    "metadata": payload.get("metadata"),
+                    "score": payload.get("score"),
+                    "timestamp": payload.get("timestamp"),
+                    "write_primes": cleaned_targets,
+                }
+            )
+        self.write_s1_slots(entity, slots)
+        return self._load_slots_doc(entity)
 
     def update_body_slot(self, entity: str, prime: int, body: Dict) -> Dict:
         doc = self._load_slots_doc(entity)

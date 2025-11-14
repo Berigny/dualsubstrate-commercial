@@ -17,13 +17,25 @@ def test_upsert_s1_body_and_fetch(client):
     entity = "berigny-1863"
 
     s1_payload = {
-        "2": {"what_new": "definition vs conception", "write_primes": [23, 29]},
-        "3": {"title": "Light for the Million", "write_primes": [23]},
+        "entity": entity,
+        "slots": [
+            {
+                "prime": 2,
+                "body_prime": 23,
+                "title": "Definition vs conception",
+                "metadata": {"what_new": "definition vs conception"},
+                "tags": ["definition", "conception"],
+            },
+            {
+                "prime": 3,
+                "body_prime": 29,
+                "title": "Light for the Million",
+            },
+        ],
     }
-    resp = client.put(f"/ledger/s1?entity={entity}", headers=HEADERS, json=s1_payload)
+    resp = client.put("/ledger/s1", headers=HEADERS, json=s1_payload)
     assert resp.status_code == 200, resp.text
-    data = resp.json()
-    assert data["slots"]["S1"]["2"]["write_primes"] == [23, 29]
+    assert resp.json() == {"updated": 2}
 
     body_payload = {"content_type": "text/plain", "text": "Sample body content."}
     resp = client.put(f"/ledger/body?entity={entity}&prime=23", headers=HEADERS, json=body_payload)
@@ -34,9 +46,15 @@ def test_upsert_s1_body_and_fetch(client):
     resp = client.get(f"/ledger?entity={entity}", headers=HEADERS)
     assert resp.status_code == 200
     doc = resp.json()
+    s1_slots = doc["slots"]["S1"]
+    assert s1_slots["2"]["body_prime"] == 23
+    assert s1_slots["2"]["write_primes"] == [23]
+    assert s1_slots["2"]["metadata"]["what_new"] == "definition vs conception"
+    assert s1_slots["2"]["value"] == 1
+    assert s1_slots["3"]["body_prime"] == 29
+    assert s1_slots["3"]["title"] == "Light for the Million"
     assert "23" in doc["slots"]["body"]
     assert doc["slots"]["body"]["23"]["hash"].startswith("sha256:")
-    assert doc["slots"]["S1"]["3"]["title"] == "Light for the Million"
     assert "factors" in doc
 
 
@@ -105,12 +123,16 @@ def test_anchor_populates_body_slots_from_write_primes(client):
     entity = "anchor-body"
 
     s1_payload = {
-        "2": {"headline": "Aurora beacon", "write_primes": [23, 29]},
-        "3": {"summary": "Aurora insight", "write_primes": [31]},
+        "entity": entity,
+        "slots": [
+            {"prime": 2, "body_prime": 23, "title": "Aurora beacon"},
+            {"prime": 3, "body_prime": 29, "title": "Aurora insight"},
+            {"prime": 5, "body_prime": 31, "title": "Aurora tertiary"},
+        ],
     }
 
     resp = client.put(
-        f"/ledger/s1?entity={entity}",
+        "/ledger/s1",
         headers=HEADERS,
         json=s1_payload,
     )
