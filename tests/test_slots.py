@@ -39,6 +39,40 @@ def test_upsert_s1_body_and_fetch(client):
     assert "factors" in doc
 
 
+def test_body_slot_metadata_round_trip(client):
+    _create_ledger(client)
+    entity = "metadata-body"
+    body_payload = {
+        "content_type": "text/markdown",
+        "text": "# Annotated body",
+        "kind": "transcript",
+        "version": "1.0.2",
+        "lawfulness_level": 2,
+        "provenance": {"ingested_at": "2024-05-01T12:00:00Z", "by": "spec"},
+    }
+
+    resp = client.put(
+        f"/ledger/body?entity={entity}&prime=23",
+        headers=HEADERS,
+        json=body_payload,
+    )
+    assert resp.status_code == 200, resp.text
+    doc = resp.json()
+    slot = doc["slots"]["body"]["23"]
+    assert slot["kind"] == body_payload["kind"]
+    assert slot["version"] == body_payload["version"]
+    assert slot["lawfulness_level"] == body_payload["lawfulness_level"]
+    assert slot["provenance"] == body_payload["provenance"]
+
+    resp = client.get(f"/ledger?entity={entity}", headers=HEADERS)
+    assert resp.status_code == 200
+    fetched = resp.json()["slots"]["body"]["23"]
+    assert fetched["kind"] == body_payload["kind"]
+    assert fetched["version"] == body_payload["version"]
+    assert fetched["lawfulness_level"] == body_payload["lawfulness_level"]
+    assert fetched["provenance"] == body_payload["provenance"]
+
+
 def test_invalid_body_prime_rejected(client):
     _create_ledger(client)
     entity = "body-test"

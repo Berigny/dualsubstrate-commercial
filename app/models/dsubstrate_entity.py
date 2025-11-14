@@ -159,11 +159,22 @@ class BodyShard(BaseModel):
     norm: Optional[BodyNormalised] = None
     provenance: Optional[BodyProvenance] = None
     updated_at: Optional[int] = None
+    kind: Optional[str] = None
+    version: Optional[str] = None
+    lawfulness_level: Optional[int] = None
 
     @validator("text")
     def _ensure_text(cls, value: str) -> str:
         if not value.strip():
             raise ValueError("body text must not be empty")
+        return value
+
+    @validator("lawfulness_level")
+    def _validate_lawfulness_level(cls, value: Optional[int]) -> Optional[int]:
+        if value is None:
+            return value
+        if not 0 <= value <= 3:
+            raise ValueError("lawfulness_level must be between 0 and 3")
         return value
 
     class Config:
