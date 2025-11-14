@@ -229,3 +229,32 @@ def test_search_allows_entity_parameter(client):
     assert data.get("entity") == entity
     results = data.get("results", [])
     assert any(row.get("entity") == entity for row in results)
+
+
+def test_search_supports_recall_mode(client):
+    entity = "recall-demo"
+    body_payload = {
+        "entity": entity,
+        "prime": 31,
+        "body": "Recall specific meeting summary",
+        "metadata": {"kind": "memory"},
+    }
+
+    put_response = client.put(
+        "/ledger/body",
+        headers={"Authorization": "Bearer mvp-secret"},
+        json=body_payload,
+    )
+    assert put_response.status_code == 200
+
+    response = client.get(
+        "/search",
+        headers={"Authorization": "Bearer mvp-secret"},
+        params={"entity": entity, "q": "meeting", "mode": "recall", "limit": 3},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload.get("entity") == entity
+    hits = payload.get("results", [])
+    assert any(row.get("entity") == entity for row in hits)

@@ -47,6 +47,11 @@ _SEARCH_MODE_CONFIG: Dict[str, Dict[str, object]] = {
         "prime_weights": {},
         "default_weight": 0.7,
     },
+    "recall": {
+        "slots": ("body",),
+        "prime_weights": {},
+        "default_weight": 0.75,
+    },
     "all": {
         "slots": ("S1", "S2", "body"),
         "prime_weights": {
