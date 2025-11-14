@@ -11,6 +11,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+SDK_SRC = PROJECT_ROOT / "sdk" / "python" / "src"
+if str(SDK_SRC) not in sys.path:
+    sys.path.insert(0, str(SDK_SRC))
+
 # static test secrets
 os.environ["DUALSUBSTRATE_API_KEY"] = "mvp-secret"
 os.environ["FASTAPI_ROOT"] = "http://localhost:8080"
