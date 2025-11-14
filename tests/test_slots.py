@@ -58,3 +58,53 @@ def test_invalid_s2_key(client):
         json={"12": {"summary": "invalid prime"}},
     )
     assert resp.status_code == 422
+
+
+def test_anchor_populates_body_slots_from_write_primes(client):
+    _create_ledger(client)
+    entity = "anchor-body"
+
+    s1_payload = {
+        "2": {"headline": "Aurora beacon", "write_primes": [23, 29]},
+        "3": {"summary": "Aurora insight", "write_primes": [31]},
+    }
+
+    resp = client.put(
+        f"/ledger/s1?entity={entity}",
+        headers=HEADERS,
+        json=s1_payload,
+    )
+    assert resp.status_code == 200, resp.text
+
+    anchor_payload = {
+        "entity": entity,
+        "factors": [{"prime": 2, "delta": 1}],
+        "text": "Aurora will anchor body slots.",
+    }
+
+    resp = client.post("/anchor", headers=HEADERS, json=anchor_payload)
+    assert resp.status_code == 200, resp.text
+
+    resp = client.get(f"/ledger?entity={entity}", headers=HEADERS)
+    assert resp.status_code == 200
+    doc = resp.json()
+    body_slots = doc["slots"]["body"]
+    for prime in ("23", "29", "31"):
+        assert prime in body_slots
+        assert body_slots[prime]["text"] == anchor_payload["text"]
+
+    fallback_entity = "anchor-fallback"
+    fallback_payload = {
+        "entity": fallback_entity,
+        "factors": [{"prime": 2, "delta": 1}],
+        "text": "Fallback body prime.",
+    }
+
+    resp = client.post("/anchor", headers=HEADERS, json=fallback_payload)
+    assert resp.status_code == 200, resp.text
+
+    resp = client.get(f"/ledger?entity={fallback_entity}", headers=HEADERS)
+    assert resp.status_code == 200
+    fallback_doc = resp.json()
+    fallback_body = fallback_doc["slots"]["body"]
+    assert fallback_body["23"]["text"] == fallback_payload["text"]

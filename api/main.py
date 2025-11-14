@@ -411,6 +411,33 @@ def anchor(req: AnchorReq, request: Request, _: str = Depends(require_key)):
 
     # write to ledger
     cycle = ledger.anchor(req.entity, lawful_factors)
+
+    if req.text:
+        doc = ledger.entity_document(req.entity)
+        slots = doc.get("slots") if isinstance(doc, dict) else None
+        s1_slots = slots.get("S1") if isinstance(slots, dict) else None
+        target_primes: Set[int] = set()
+        if isinstance(s1_slots, dict):
+            for payload in s1_slots.values():
+                if not isinstance(payload, dict):
+                    continue
+                write_targets = payload.get("write_primes")
+                if not isinstance(write_targets, list):
+                    continue
+                for candidate in write_targets:
+                    try:
+                        prime = int(candidate)
+                    except (TypeError, ValueError):
+                        continue
+                    target_primes.add(prime)
+        if not target_primes:
+            target_primes.add(23)
+        body_payload = {"content_type": "text/plain", "text": req.text}
+        for prime in sorted(target_primes):
+            try:
+                ledger.update_body_slot(req.entity, prime, body_payload)
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from exc
     energy = ledger.last_energy(req.entity)
     energy_payload: Dict[str, object] | None = None
     if energy is not None:
