@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, Literal, NoReturn
+from typing import Any, NoReturn
 
 
 class PayloadValidationError(ValueError):
@@ -26,45 +26,52 @@ def _coerce_bool(value: Any, *, field: str) -> bool:
     raise PayloadValidationError(f"Field '{field}' must be a boolean")
 
 
-def _coerce_str(value: Any, *, field: str) -> str:
-    if isinstance(value, str):
-        return value
-    raise PayloadValidationError(f"Field '{field}' must be a string")
+def _coerce_float(value: Any, *, field: str) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError) as exc:
+        raise PayloadValidationError(f"Field '{field}' must be a float") from exc
 
 
-def _raise_edge_error(index: int) -> NoReturn:
-    raise PayloadValidationError(
-        f"Edge at position {index} must be an object with 'src', 'dst', 'via_c', and 'label'"
-    )
+def _coerce_metadata(value: Any, *, field: str) -> dict[str, Any]:
+    if value is None:
+        return {}
+    if isinstance(value, Mapping):
+        return dict(value)
+    raise PayloadValidationError(f"Field '{field}' must be an object")
 
 
 @dataclass(frozen=True)
-class TraverseEdge:
-    """Single outbound edge returned by the ``/traverse`` endpoint."""
+class TraversePath:
+    """Traversal path returned by the ``/traverse`` endpoint."""
 
-    src: int
-    dst: int
-    via_c: bool
-    label: str
+    nodes: tuple[int, ...]
+    weight: float
+    metadata: dict[str, Any]
 
     @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> "TraverseEdge":
-        src = _coerce_int(data.get("src"), field="src")
-        dst = _coerce_int(data.get("dst"), field="dst")
-        if not 0 <= src <= 7:
-            raise PayloadValidationError("Field 'src' must be between 0 and 7")
-        if not 0 <= dst <= 7:
-            raise PayloadValidationError("Field 'dst' must be between 0 and 7")
-        via_c = _coerce_bool(data.get("via_c"), field="via_c")
-        label = _coerce_str(data.get("label"), field="label")
-        return cls(src=src, dst=dst, via_c=via_c, label=label)
+    def from_dict(cls, data: Mapping[str, Any]) -> "TraversePath":
+        try:
+            raw_nodes = data.get("nodes", [])
+        except AttributeError as exc:
+            raise PayloadValidationError("Field 'nodes' must be iterable") from exc
+
+        if not isinstance(raw_nodes, Iterable):
+            raise PayloadValidationError("Field 'nodes' must be iterable")
+
+        nodes: list[int] = []
+        for idx, node in enumerate(raw_nodes):
+            nodes.append(_coerce_int(node, field=f"nodes[{idx}]"))
+
+        weight = _coerce_float(data.get("weight"), field="weight")
+        metadata = _coerce_metadata(data.get("metadata"), field="metadata")
+        return cls(nodes=tuple(nodes), weight=weight, metadata=metadata)
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "src": self.src,
-            "dst": self.dst,
-            "via_c": self.via_c,
-            "label": self.label,
+            "nodes": list(self.nodes),
+            "weight": self.weight,
+            "metadata": dict(self.metadata),
         }
 
 
@@ -72,39 +79,51 @@ class TraverseEdge:
 class TraverseResponse:
     """Structured response payload returned by ``/traverse``."""
 
-    edges: tuple[TraverseEdge, ...]
-    centroid_flips: int
-    final_centroid: Literal[0, 1]
+    origin: int | None
+    paths: tuple[TraversePath, ...]
+    metadata: dict[str, Any]
+    supported: bool
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> "TraverseResponse":
+        if not isinstance(data, Mapping):
+            raise PayloadValidationError("Traverse response must be an object")
+
         try:
-            raw_edges_obj = data.get("edges", [])
+            raw_paths = data.get("paths", [])
         except AttributeError as exc:
-            raise PayloadValidationError("Field 'edges' must be iterable") from exc
+            raise PayloadValidationError("Field 'paths' must be iterable") from exc
 
-        if not isinstance(raw_edges_obj, Iterable):
-            raise PayloadValidationError("Field 'edges' must be iterable")
+        if not isinstance(raw_paths, Iterable):
+            raise PayloadValidationError("Field 'paths' must be iterable")
 
-        edges = tuple(
-            TraverseEdge.from_dict(edge) if isinstance(edge, Mapping) else _raise_edge_error(idx)
-            for idx, edge in enumerate(raw_edges_obj)
+        paths: tuple[TraversePath, ...] = tuple(
+            TraversePath.from_dict(path)
+            if isinstance(path, Mapping)
+            else _raise_path_error(idx)
+            for idx, path in enumerate(raw_paths)
         )
-        centroid_flips = _coerce_int(data.get("centroid_flips"), field="centroid_flips")
-        final_centroid_raw = _coerce_int(data.get("final_centroid"), field="final_centroid")
-        if final_centroid_raw not in (0, 1):
-            raise PayloadValidationError("Field 'final_centroid' must be either 0 or 1")
 
-        final_centroid: Literal[0, 1] = 0 if final_centroid_raw == 0 else 1
+        origin_raw = data.get("origin")
+        origin = None if origin_raw is None else _coerce_int(origin_raw, field="origin")
+        metadata = _coerce_metadata(data.get("metadata"), field="metadata")
+        supported = _coerce_bool(data.get("supported", True), field="supported")
 
-        return cls(edges=edges, centroid_flips=centroid_flips, final_centroid=final_centroid)
+        return cls(origin=origin, paths=paths, metadata=metadata, supported=supported)
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "edges": [edge.to_dict() for edge in self.edges],
-            "centroid_flips": self.centroid_flips,
-            "final_centroid": self.final_centroid,
+            "origin": self.origin,
+            "paths": [path.to_dict() for path in self.paths],
+            "metadata": dict(self.metadata),
+            "supported": self.supported,
         }
 
 
-__all__ = ["PayloadValidationError", "TraverseEdge", "TraverseResponse"]
+def _raise_path_error(index: int) -> NoReturn:
+    raise PayloadValidationError(
+        f"Path at position {index} must be an object with 'nodes', 'weight', and 'metadata'"
+    )
+
+
+__all__ = ["PayloadValidationError", "TraversePath", "TraverseResponse"]

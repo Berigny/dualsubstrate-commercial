@@ -28,13 +28,14 @@ def test_upsert_s1_body_and_fetch(client):
     body_payload = {"content_type": "text/plain", "text": "Sample body content."}
     resp = client.put(f"/ledger/body?entity={entity}&prime=23", headers=HEADERS, json=body_payload)
     assert resp.status_code == 200
-    data = resp.json()
-    assert "23" in data["slots"]["body"]
-    assert data["slots"]["body"]["23"]["hash"].startswith("sha256:")
+    ack = resp.json()
+    assert ack == {"ok": True, "entity": entity, "prime": 23}
 
     resp = client.get(f"/ledger?entity={entity}", headers=HEADERS)
     assert resp.status_code == 200
     doc = resp.json()
+    assert "23" in doc["slots"]["body"]
+    assert doc["slots"]["body"]["23"]["hash"].startswith("sha256:")
     assert doc["slots"]["S1"]["3"]["title"] == "Light for the Million"
     assert "factors" in doc
 
@@ -57,6 +58,11 @@ def test_body_slot_metadata_round_trip(client):
         json=body_payload,
     )
     assert resp.status_code == 200, resp.text
+    ack = resp.json()
+    assert ack["ok"] is True
+
+    resp = client.get(f"/ledger?entity={entity}", headers=HEADERS)
+    assert resp.status_code == 200
     doc = resp.json()
     slot = doc["slots"]["body"]["23"]
     assert slot["kind"] == body_payload["kind"]

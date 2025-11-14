@@ -1,31 +1,34 @@
+import uuid
+
 API_KEY = "mvp-secret"
-HEADERS = {"x-api-key": API_KEY, "X-Ledger-ID": "spec-ledger"}
 
 
-def _create_ledger(client):
+def _create_ledger(client, ledger_id: str):
     resp = client.post(
         "/admin/ledgers",
         headers={"x-api-key": API_KEY},
-        json={"ledger_id": "spec-ledger"},
+        json={"ledger_id": ledger_id},
     )
     assert resp.status_code == 200, resp.text
 
 
 def _seed_search_content(client):
-    _create_ledger(client)
+    ledger_id = f"spec-ledger-{uuid.uuid4().hex[:8]}"
+    headers = {"x-api-key": API_KEY, "X-Ledger-ID": ledger_id}
+    _create_ledger(client, ledger_id)
 
     # --- S1 slots -----------------------------------------------------
     entity_primary = "s1-alpha"
     entity_secondary = "s1-beta"
     resp = client.put(
         f"/ledger/s1?entity={entity_primary}",
-        headers=HEADERS,
+        headers=headers,
         json={"2": {"title": "Aurora aurora beacon", "write_primes": [23]}},
     )
     assert resp.status_code == 200, resp.text
     resp = client.put(
         f"/ledger/s1?entity={entity_secondary}",
-        headers=HEADERS,
+        headers=headers,
         json={"5": {"summary": "Aurora insight", "write_primes": [29]}},
     )
     assert resp.status_code == 200, resp.text
@@ -36,18 +39,18 @@ def _seed_search_content(client):
     metrics_payload = {"dE": -1.0, "dDrift": -1.5, "dRetention": 1.1, "K": 0.0}
     for entity in (s2_primary, s2_secondary):
         resp = client.patch(
-            f"/ledger/metrics?entity={entity}", headers=HEADERS, json=metrics_payload
+            f"/ledger/metrics?entity={entity}", headers=headers, json=metrics_payload
         )
         assert resp.status_code == 200, resp.text
     resp = client.put(
         f"/ledger/s2?entity={s2_primary}",
-        headers=HEADERS,
+        headers=headers,
         json={"11": {"overview": "Aurora evidence"}},
     )
     assert resp.status_code == 200, resp.text
     resp = client.put(
         f"/ledger/s2?entity={s2_secondary}",
-        headers=HEADERS,
+        headers=headers,
         json={"19": {"notes": ["Aurora log"]}},
     )
     assert resp.status_code == 200, resp.text
@@ -57,13 +60,13 @@ def _seed_search_content(client):
     body_secondary = "body-beta"
     resp = client.put(
         f"/ledger/body?entity={body_primary}&prime=23",
-        headers=HEADERS,
+        headers=headers,
         json={"content_type": "text/plain", "text": "Aurora aurora luminous arc"},
     )
     assert resp.status_code == 200, resp.text
     resp = client.put(
         f"/ledger/body?entity={body_secondary}&prime=29",
-        headers=HEADERS,
+        headers=headers,
         json={"content_type": "text/plain", "text": "Aurora sketch"},
     )
     assert resp.status_code == 200, resp.text
@@ -75,15 +78,15 @@ def _seed_search_content(client):
         "s2_secondary": s2_secondary,
         "body_primary": body_primary,
         "body_secondary": body_secondary,
-    }
+    }, headers
 
 
 def test_search_s1_mode_ranking(client):
-    entities = _seed_search_content(client)
+    entities, headers = _seed_search_content(client)
 
     resp = client.get(
         "/search",
-        headers=HEADERS,
+        headers=headers,
         params={"q": "aurora", "mode": "s1"},
     )
     assert resp.status_code == 200, resp.text
@@ -99,11 +102,11 @@ def test_search_s1_mode_ranking(client):
 
 
 def test_search_s2_mode_ranking(client):
-    entities = _seed_search_content(client)
+    entities, headers = _seed_search_content(client)
 
     resp = client.get(
         "/search",
-        headers=HEADERS,
+        headers=headers,
         params={"q": "aurora", "mode": "s2"},
     )
     assert resp.status_code == 200, resp.text
@@ -118,11 +121,11 @@ def test_search_s2_mode_ranking(client):
 
 
 def test_search_body_mode_ranking(client):
-    entities = _seed_search_content(client)
+    entities, headers = _seed_search_content(client)
 
     resp = client.get(
         "/search",
-        headers=HEADERS,
+        headers=headers,
         params={"q": "aurora", "mode": "body"},
     )
     assert resp.status_code == 200, resp.text
@@ -136,11 +139,11 @@ def test_search_body_mode_ranking(client):
 
 
 def test_search_all_mode_includes_all_slots(client):
-    entities = _seed_search_content(client)
+    entities, headers = _seed_search_content(client)
 
     resp = client.get(
         "/search",
-        headers=HEADERS,
+        headers=headers,
         params={"q": "aurora", "mode": "all"},
     )
     assert resp.status_code == 200, resp.text
@@ -155,11 +158,11 @@ def test_search_all_mode_includes_all_slots(client):
 
 
 def test_search_rejects_unknown_mode(client):
-    _seed_search_content(client)
+    _, headers = _seed_search_content(client)
 
     resp = client.get(
         "/search",
-        headers=HEADERS,
+        headers=headers,
         params={"q": "aurora", "mode": "unknown"},
     )
     assert resp.status_code == 422

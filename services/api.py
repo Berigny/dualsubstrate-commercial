@@ -58,36 +58,45 @@ class ApiService:
 
     def traverse(
         self,
-        start: int,
-        depth: int,
         *,
+        entity: str | None = None,
+        origin: int | None = None,
+        limit: int = 8,
+        depth: int = 1,
+        direction: str = "forward",
+        include_metadata: bool = False,
         ledger_id: str | None = None,
     ) -> TraverseResponse:
-        """Traverse the DualSubstrate automaton with local validation and logging."""
+        """Traverse the DualSubstrate ledger graph with client-side validation."""
 
+        direction_hint = (direction or "forward").strip().lower() or "forward"
         breadcrumbs: Dict[str, Any] = {
             "operation": "traverse",
-            "start": start,
+            "entity": entity,
+            "origin": origin,
+            "limit": limit,
             "depth": depth,
+            "direction": direction_hint,
+            "include_metadata": include_metadata,
         }
         if ledger_id:
             breadcrumbs["ledger_id"] = ledger_id
 
-        if not 0 <= start <= 7:
+        if not 1 <= limit <= 64:
             breadcrumbs["status_code"] = 400
-            message = "Start must be between 0 and 7."
-            self.logger.warning("Traverse start outside allowed range", extra={"breadcrumbs": breadcrumbs})
+            message = "Limit must be between 1 and 64."
+            self.logger.warning("Traverse limit outside allowed range", extra={"breadcrumbs": breadcrumbs})
             raise ApiServiceError(
-                "start_out_of_range",
+                "limit_out_of_range",
                 message,
                 breadcrumbs=breadcrumbs,
                 status_code=400,
                 detail=message,
             )
 
-        if not 1 <= depth <= 10:
+        if not 1 <= depth <= 32:
             breadcrumbs["status_code"] = 400
-            message = "Depth must be between 1 and 10."
+            message = "Depth must be between 1 and 32."
             self.logger.warning("Traverse depth outside allowed range", extra={"breadcrumbs": breadcrumbs})
             raise ApiServiceError(
                 "depth_out_of_range",
@@ -97,8 +106,28 @@ class ApiService:
                 detail=message,
             )
 
+        if direction_hint not in {"forward", "backward", "both"}:
+            breadcrumbs["status_code"] = 400
+            message = "Direction must be forward, backward, or both."
+            self.logger.warning("Traverse direction invalid", extra={"breadcrumbs": breadcrumbs})
+            raise ApiServiceError(
+                "direction_invalid",
+                message,
+                breadcrumbs=breadcrumbs,
+                status_code=400,
+                detail=message,
+            )
+
         try:
-            response = self.client.traverse(start=start, depth=depth, ledger_id=ledger_id)
+            response = self.client.traverse(
+                entity=entity,
+                origin=origin,
+                limit=limit,
+                depth=depth,
+                direction=direction_hint,
+                include_metadata=include_metadata,
+                ledger_id=ledger_id,
+            )
         except ValidationError as exc:
             breadcrumbs["status_code"] = exc.status_code or 422
             self.logger.info("Traverse validation error", extra={"breadcrumbs": breadcrumbs})

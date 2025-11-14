@@ -84,23 +84,41 @@ class DualSubstrateClient:
     # ------------------------------------------------------------------
     def traverse(
         self,
-        start: int,
-        depth: int,
         *,
+        entity: str | None = None,
+        origin: int | None = None,
+        limit: int | None = None,
+        depth: int | None = None,
+        direction: str | None = None,
+        include_metadata: bool | None = None,
         ledger_id: str | None = None,
+        timeout: float | None = None,
     ) -> TraverseResponse:
-        """Invoke the ``/traverse`` endpoint and parse the response."""
+        """Invoke the ``/traverse`` endpoint and parse the response payload."""
 
         headers = dict(self._default_headers)
         if ledger_id:
             headers[LEDGER_HEADER] = ledger_id
 
-        response = self._session.post(
+        params: Dict[str, object] = {}
+        if entity:
+            params["entity"] = entity
+        if origin is not None:
+            params["origin"] = origin
+        if limit is not None:
+            params["limit"] = limit
+        if depth is not None:
+            params["depth"] = depth
+        if direction:
+            params["direction"] = direction
+        if include_metadata is not None:
+            params["include_metadata"] = include_metadata
+
+        response = self._session.get(
             f"{self._base}/traverse",
             headers=headers or None,
-            params={"start": start, "depth": depth},
-            json={},
-            timeout=float(os.getenv("DUALSUBSTRATE_HTTP_TIMEOUT", "10")),
+            params=params or None,
+            timeout=timeout or float(os.getenv("DUALSUBSTRATE_HTTP_TIMEOUT", "10")),
         )
 
         status = response.status_code

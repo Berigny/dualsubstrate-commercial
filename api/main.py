@@ -181,6 +181,28 @@ def _ledger_id(request: Request) -> str:
     return request.headers.get(LEDGER_HEADER, DEFAULT_LEDGER_ID)
 
 
+def _entity_from_request(
+    entity_param: str | None,
+    request: Request,
+    *,
+    allow_default: bool = False,
+) -> str:
+    """
+    Resolve an entity identifier from query parameters or the X-Ledger-ID header.
+    When ``allow_default`` is true we fall back to ``DEFAULT_LEDGER_ID`` so legacy
+    clients that omitted the entity parameter continue to function.
+    """
+
+    candidate = (entity_param or request.headers.get(LEDGER_HEADER) or "").strip()
+    if candidate:
+        return candidate
+    if allow_default:
+        return DEFAULT_LEDGER_ID
+    raise HTTPException(
+        422, "entity must be provided via query parameter or X-Ledger-ID header"
+    )
+
+
 def _prime_to_node(p: Prime) -> Node:
     """core registry: 2→0, 3→1, 5→2, 7→3, 11→4, 13→5, 17→6, 19→7"""
     mapping = {2: 0, 3: 1, 5: 2, 7: 3, 11: 4, 13: 5, 17: 6, 19: 7}
@@ -293,16 +315,20 @@ def upsert_s1_slots(
 @app.put("/ledger/body")
 def upsert_body_slot(
     request: Request,
-    entity: str | None = Query(None),
-    prime: int | None = Query(None, ge=2),
+    entity: str | None = Query(None, description="Entity identifier"),
+    prime: int | None = Query(None, ge=2, description="Target prime (>=23)"),
     payload: Dict[str, Any] = Body(...),
     _: str = Depends(require_key),
 ):
     ledger = get_ledger(_ledger_id(request))
 
-    payload_entity = (payload.get("entity") or entity or "").strip()
-    if not payload_entity:
+    body_entity = (payload.get("entity") or "").strip()
+    query_entity = (entity or "").strip()
+    resolved_entity = body_entity or query_entity
+    if not resolved_entity:
         raise HTTPException(422, "entity must be provided in the query or body payload")
+    if body_entity and query_entity and body_entity != query_entity:
+        raise HTTPException(422, "entity in body must match the query parameter")
 
     prime_value = payload.get("prime", prime)
     if prime_value is None:
@@ -311,6 +337,8 @@ def upsert_body_slot(
         prime_int = int(prime_value)
     except (TypeError, ValueError) as exc:
         raise HTTPException(422, "prime must be an integer") from exc
+    if prime is not None and payload.get("prime") is not None and int(prime) != prime_int:
+        raise HTTPException(422, "prime in body must match the query parameter")
 
     text_value: str | None = None
     for field in ("body", "text", "value"):
@@ -340,10 +368,10 @@ def upsert_body_slot(
         slot_payload["metadata"] = metadata_obj
 
     try:
-        ledger.update_body_slot(payload_entity, prime_int, slot_payload)
+        ledger.update_body_slot(resolved_entity, prime_int, slot_payload)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
-    return _ledger_response(ledger, payload_entity)
+    return {"ok": True, "entity": resolved_entity, "prime": prime_int}
 
 
 @app.put("/ledger/s2")
@@ -366,46 +394,67 @@ def upsert_s2_slots(
 @limiter.limit("300/minute")
 def traverse_paths(
     request: Request,
-    entity: str = Query(..., description="Entity identifier to traverse"),
+    entity: str | None = Query(None, description="Entity identifier to traverse"),
     origin: int | None = Query(None, ge=2, description="Optional origin prime"),
     limit: int = Query(8, ge=1, le=64, description="Maximum traversal records to return"),
     depth: int = Query(1, ge=1, le=32, description="Traversal depth hint"),
-    direction: str | None = Query(None, description="Traversal direction preference"),
+    direction: str | None = Query(
+        None,
+        description="Traversal direction preference (forward, backward, or both)",
+    ),
     include_metadata: bool = Query(False, description="Include entity metadata block"),
     _: str = Depends(require_key),
 ):
     ledger = get_ledger(_ledger_id(request))
-
-    factors = ledger.factors(entity)
-    non_zero = [prime for prime, weight in factors if weight != 0]
-    annotations = annotate_prime_list(non_zero)
-    annotation_map = {item.get("prime"): item for item in annotations if isinstance(item, dict)}
+    target_entity = _entity_from_request(entity, request, allow_default=False)
 
     direction_hint = (direction or "forward").strip().lower() or "forward"
+    if direction_hint not in {"forward", "backward", "both"}:
+        raise HTTPException(422, "direction must be forward, backward, or both")
+
+    factor_pairs = [
+        (prime, weight) for prime, weight in ledger.factors(target_entity) if weight != 0
+    ]
+    annotations = annotate_prime_list([prime for prime, _ in factor_pairs])
+    annotation_map = {item.get("prime"): item for item in annotations if isinstance(item, dict)}
+    total_weight = sum(abs(weight) for _, weight in factor_pairs) or 1.0
+
     paths: List[Dict[str, Any]] = []
-    for prime, weight in factors:
-        if weight == 0:
-            continue
-        record: Dict[str, Any] = {
+    for idx, (prime, weight) in enumerate(factor_pairs):
+        if len(paths) >= limit:
+            break
+        window = [p for p, _ in factor_pairs[idx : idx + depth]]
+        nodes = list(window)
+        if origin is not None and (not nodes or nodes[0] != origin):
+            nodes.insert(0, origin)
+        metadata_record: Dict[str, Any] = {
             "prime": prime,
-            "weight": weight,
-            "depth": depth,
+            "delta": weight,
             "direction": direction_hint,
+            "entity": target_entity,
         }
         annotation = annotation_map.get(prime)
         if annotation:
-            record["annotation"] = annotation
-        paths.append(record)
-        if len(paths) >= limit:
-            break
+            metadata_record["annotation"] = annotation
+        paths.append(
+            {
+                "nodes": nodes or ([origin] if origin is not None else []),
+                "weight": round(abs(weight) / total_weight, 6),
+                "metadata": metadata_record,
+            }
+        )
 
     metadata_block: Dict[str, Any] = {}
     if include_metadata:
-        doc = ledger.entity_document(entity)
+        doc = ledger.entity_document(target_entity)
         meta = doc.get("meta") if isinstance(doc, dict) else None
         metadata_block = meta if isinstance(meta, dict) else {}
 
-    origin_prime = origin if origin is not None else (paths[0]["prime"] if paths else None)
+    origin_prime = origin
+    if origin_prime is None and paths:
+        first_nodes = paths[0].get("nodes") or []
+        if first_nodes:
+            origin_prime = first_nodes[0]
 
     return {
         "origin": origin_prime,
@@ -421,7 +470,7 @@ def search(
     q: str = Query(..., description="Query string to match across ledger slots."),
     mode: str = Query(
         "all",
-        description="Search scope: s1, s2, body, or all",
+        description="Search scope: s1, s2, body, slots, recall, or all",
     ),
     limit: int = Query(50, ge=1, le=200, description="Maximum number of results to return."),
     entity: str | None = Query(None, description="Optional entity scope override."),
@@ -479,9 +528,7 @@ def get_inference_state(
     _: str = Depends(require_key),
 ):
     ledger = get_ledger(_ledger_id(request))
-    target_entity = (entity or request.headers.get(LEDGER_HEADER) or "").strip()
-    if not target_entity:
-        raise HTTPException(422, "entity must be provided via query parameter or header")
+    target_entity = _entity_from_request(entity, request, allow_default=True)
 
     snapshot = ledger.inference_snapshot(target_entity)
     if include_history:

@@ -22,7 +22,7 @@ class DummyResponse:
             raise self._json_exc
         return self._json_data
 
-    def raise_for_status(self):  # pragma: no cover - not used but mimics requests.Response
+    def raise_for_status(self):  # pragma: no cover - mirrors requests.Response API
         if 400 <= self.status_code:
             raise AssertionError("raise_for_status should not be invoked in tests")
 
@@ -32,31 +32,51 @@ class DummySession:
         self._responses = list(responses)
         self.calls = []
 
-    def post(self, url, **kwargs):
+    def get(self, url, **kwargs):
         self.calls.append({"url": url, **kwargs})
         try:
             return self._responses.pop(0)
         except IndexError:  # pragma: no cover - defensive
-            raise AssertionError("No response queued for POST call")
+            raise AssertionError("No response queued for GET call")
 
 
 def test_traverse_successfully_parses_payload():
     payload = {
-        "edges": [{"src": 0, "dst": 1, "via_c": False, "label": "work"}],
-        "centroid_flips": 2,
-        "final_centroid": 1,
+        "origin": 23,
+        "paths": [
+            {"nodes": [23, 37, 41], "weight": 0.82, "metadata": {"prime": 37}},
+        ],
+        "metadata": {"tier": "S1"},
+        "supported": True,
     }
     session = DummySession([DummyResponse(200, json_data=payload)])
     client = DualSubstrateClient(base_url="https://api.test", api_key="token", session=session)
 
-    response = client.traverse(0, 3, ledger_id="ledger-1")
+    response = client.traverse(
+        entity="demo",
+        origin=23,
+        limit=3,
+        depth=2,
+        direction="forward",
+        include_metadata=True,
+        ledger_id="ledger-1",
+    )
 
-    assert response.centroid_flips == 2
-    assert response.final_centroid == 1
-    assert response.edges[0].label == "work"
+    assert response.origin == 23
+    assert response.paths[0].nodes == (23, 37, 41)
+    assert response.paths[0].weight == pytest.approx(0.82)
+    assert response.paths[0].metadata["prime"] == 37
+    assert response.metadata["tier"] == "S1"
 
     call = session.calls[0]
-    assert call["params"] == {"start": 0, "depth": 3}
+    assert call["params"] == {
+        "entity": "demo",
+        "origin": 23,
+        "limit": 3,
+        "depth": 2,
+        "direction": "forward",
+        "include_metadata": True,
+    }
     assert call["headers"]["Authorization"] == "Bearer token"
     assert call["headers"]["X-Ledger-ID"] == "ledger-1"
 
@@ -68,27 +88,27 @@ def test_traverse_handles_invalid_json_payload():
     client = DualSubstrateClient(base_url="https://api.test", session=session)
 
     with pytest.raises(ResponseParseError):
-        client.traverse(0, 1)
+        client.traverse()
 
 
 def test_traverse_handles_malformed_payload_structure():
-    payload = {"edges": ["oops"], "centroid_flips": 1, "final_centroid": 0}
+    payload = {"paths": ["oops"], "origin": 23, "metadata": {}, "supported": True}
     session = DummySession([DummyResponse(200, json_data=payload)])
     client = DualSubstrateClient(base_url="https://api.test", session=session)
 
     with pytest.raises(ResponseParseError):
-        client.traverse(1, 1)
+        client.traverse()
 
 
 def test_traverse_raises_validation_error():
-    payload = {"detail": "No legal outbound edge"}
+    payload = {"detail": "Traversal unsupported"}
     session = DummySession([DummyResponse(422, json_data=payload)])
     client = DualSubstrateClient(base_url="https://api.test", session=session)
 
     with pytest.raises(ValidationError) as excinfo:
-        client.traverse(4, 1)
+        client.traverse()
 
-    assert excinfo.value.detail == "No legal outbound edge"
+    assert excinfo.value.detail == "Traversal unsupported"
     assert excinfo.value.status_code == 422
 
 
@@ -98,7 +118,7 @@ def test_traverse_raises_rate_limit_error():
     client = DualSubstrateClient(base_url="https://api.test", session=session)
 
     with pytest.raises(RateLimitError) as excinfo:
-        client.traverse(2, 2)
+        client.traverse()
 
     assert excinfo.value.status_code == 429
 
@@ -109,7 +129,7 @@ def test_traverse_raises_server_error_for_5xx():
     client = DualSubstrateClient(base_url="https://api.test", session=session)
 
     with pytest.raises(ServerError) as excinfo:
-        client.traverse(1, 2)
+        client.traverse()
 
     assert excinfo.value.status_code == 503
 
@@ -119,6 +139,6 @@ def test_traverse_raises_unexpected_status():
     client = DualSubstrateClient(base_url="https://api.test", session=session)
 
     with pytest.raises(UnexpectedResponseError) as excinfo:
-        client.traverse(1, 2)
+        client.traverse()
 
     assert excinfo.value.status_code == 404

@@ -3,7 +3,7 @@ import logging
 import pytest
 
 from dualsubstrate_sdk.api_client import DualSubstrateError, RateLimitError, ValidationError
-from dualsubstrate_sdk.http_models import TraverseEdge, TraverseResponse
+from dualsubstrate_sdk.http_models import TraversePath, TraverseResponse
 
 from services.api import ApiService, ApiServiceError
 
@@ -14,8 +14,8 @@ class StubClient:
         self._error = error
         self.calls: list[dict[str, object]] = []
 
-    def traverse(self, start: int, depth: int, ledger_id: str | None = None):
-        self.calls.append({"start": start, "depth": depth, "ledger_id": ledger_id})
+    def traverse(self, **kwargs):
+        self.calls.append(kwargs)
         if self._error is not None:
             raise self._error
         return self._response
@@ -29,28 +29,46 @@ def _service(response=None, error: Exception | None = None) -> ApiService:
 
 def test_traverse_successful_call_returns_payload():
     response = TraverseResponse(
-        edges=(TraverseEdge(src=0, dst=1, via_c=False, label="work"),),
-        centroid_flips=1,
-        final_centroid=0,
+        origin=23,
+        paths=(TraversePath(nodes=(23, 37, 41), weight=0.82, metadata={"prime": 37}),),
+        metadata={"tier": "S1"},
+        supported=True,
     )
     service, client = _service(response=response)
 
-    result = service.traverse(0, 3, ledger_id="ledger-1")
+    result = service.traverse(
+        entity="demo",
+        origin=23,
+        limit=3,
+        depth=2,
+        direction="forward",
+        include_metadata=True,
+        ledger_id="ledger-1",
+    )
 
     assert result is response
-    assert client.calls == [{"start": 0, "depth": 3, "ledger_id": "ledger-1"}]
+    assert client.calls == [
+        {
+            "entity": "demo",
+            "origin": 23,
+            "limit": 3,
+            "depth": 2,
+            "direction": "forward",
+            "include_metadata": True,
+            "ledger_id": "ledger-1",
+        }
+    ]
 
 
-def test_traverse_validates_start_range():
+def test_traverse_validates_limit_range():
     service, client = _service()
 
     with pytest.raises(ApiServiceError) as excinfo:
-        service.traverse(-1, 2)
+        service.traverse(entity="demo", limit=0)
 
     err = excinfo.value
-    assert err.code == "start_out_of_range"
+    assert err.code == "limit_out_of_range"
     assert err.status_code == 400
-    assert err.breadcrumbs["start"] == -1
     assert client.calls == []
 
 
@@ -58,12 +76,23 @@ def test_traverse_validates_depth_range():
     service, client = _service()
 
     with pytest.raises(ApiServiceError) as excinfo:
-        service.traverse(1, 11)
+        service.traverse(entity="demo", depth=64)
 
     err = excinfo.value
     assert err.code == "depth_out_of_range"
     assert err.status_code == 400
-    assert err.breadcrumbs["depth"] == 11
+    assert client.calls == []
+
+
+def test_traverse_validates_direction():
+    service, client = _service()
+
+    with pytest.raises(ApiServiceError) as excinfo:
+        service.traverse(entity="demo", direction="sideways")
+
+    err = excinfo.value
+    assert err.code == "direction_invalid"
+    assert err.status_code == 400
     assert client.calls == []
 
 
@@ -76,7 +105,7 @@ def test_traverse_wraps_validation_error():
     service, _ = _service(error=error)
 
     with pytest.raises(ApiServiceError) as excinfo:
-        service.traverse(1, 2)
+        service.traverse(entity="demo")
 
     err = excinfo.value
     assert err.code == "validation_error"
@@ -95,7 +124,7 @@ def test_traverse_wraps_rate_limit_error():
     service, _ = _service(error=error)
 
     with pytest.raises(ApiServiceError) as excinfo:
-        service.traverse(1, 2)
+        service.traverse(entity="demo")
 
     err = excinfo.value
     assert err.code == "rate_limited"
@@ -112,7 +141,7 @@ def test_traverse_wraps_generic_client_error():
     service, _ = _service(error=error)
 
     with pytest.raises(ApiServiceError) as excinfo:
-        service.traverse(1, 2)
+        service.traverse(entity="demo")
 
     err = excinfo.value
     assert err.code == "backend_error"

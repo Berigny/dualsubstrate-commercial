@@ -166,13 +166,15 @@ def test_traverse_get_returns_paths(client):
     body = response.json()
     assert body["supported"] is True
     assert body["origin"] == PRIME_ARRAY[0]
-    assert "metadata" in body
+    assert isinstance(body.get("metadata"), dict)
     paths = body.get("paths", [])
     assert paths, "Expected at least one traversal path"
     first = paths[0]
-    assert first["prime"] == PRIME_ARRAY[0]
-    assert first["weight"] == 2
-    assert first["direction"] == "forward"
+    assert first["nodes"], "expected traversal nodes list"
+    assert first["nodes"][0] == body["origin"]
+    assert 0.0 <= first["weight"] <= 1.0
+    assert first["metadata"]["prime"] == PRIME_ARRAY[0]
+    assert first["metadata"]["direction"] == "forward"
 
 
 def test_inference_state_with_history(client):
@@ -200,6 +202,25 @@ def test_inference_state_with_history(client):
     assert isinstance(history, list)
     assert 1 <= len(history) <= 2
     assert history[0]["e"] == entity
+
+
+def test_inference_state_supports_header_fallback(client):
+    entity = "header-fallback"
+    headers = {"Authorization": "Bearer mvp-secret", "X-Ledger-ID": entity}
+    response = client.post(
+        "/anchor",
+        headers=headers,
+        json={
+            "entity": entity,
+            "factors": [{"prime": PRIME_ARRAY[0], "delta": 1}],
+        },
+    )
+    assert response.status_code == 200
+
+    state_response = client.get("/inference/state", headers=headers)
+    assert state_response.status_code == 200
+    payload = state_response.json()
+    assert isinstance(payload.get("x"), list)
 
 
 def test_search_allows_entity_parameter(client):
