@@ -510,13 +510,92 @@ def rotate(req: RotateReq, request: Request, _: str = Depends(require_key)):
     )
 
 
+def _pick_latest_body_text(doc: Dict[str, Any]) -> str | None:
+    slots = doc.get("slots")
+    if not isinstance(slots, dict):
+        return None
+    body_slots = slots.get("body")
+    if not isinstance(body_slots, dict):
+        return None
+
+    newest_text: str | None = None
+    newest_updated_at = -1
+
+    for payload in body_slots.values():
+        if not isinstance(payload, dict):
+            continue
+        text = payload.get("text")
+        if not isinstance(text, str) or not text.strip():
+            continue
+        updated_at_raw = payload.get("updated_at")
+        updated_at = 0
+        if isinstance(updated_at_raw, (int, float)):
+            updated_at = int(updated_at_raw)
+        else:
+            try:
+                updated_at = int(updated_at_raw)
+            except (TypeError, ValueError):
+                updated_at = 0
+        if updated_at > newest_updated_at:
+            newest_text = text
+            newest_updated_at = updated_at
+
+    return newest_text
+
+
+def _latest_memory_text(ledger: Ledger, entity: str) -> str | None:
+    prefix = f"{entity}:".encode()
+    latest_text: str | None = None
+    latest_timestamp = -1
+
+    for _, raw_value in ledger.qp_iter(prefix):
+        try:
+            decoded = json.loads(raw_value.decode())
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            continue
+
+        if not isinstance(decoded, dict):
+            continue
+
+        text = decoded.get("text")
+        if not isinstance(text, str) or not text.strip():
+            continue
+
+        ts_raw = decoded.get("timestamp")
+        ts = 0
+        if isinstance(ts_raw, (int, float)):
+            ts = int(ts_raw)
+        else:
+            try:
+                ts = int(ts_raw)
+            except (TypeError, ValueError):
+                ts = 0
+
+        if ts > latest_timestamp:
+            latest_timestamp = ts
+            latest_text = text
+
+    return latest_text
+
+
 @app.get("/retrieve")
 def recall_last(entity: str, request: Request, _: str = Depends(require_key)):
     """Return the most recently anchored raw text for ``entity``."""
 
-    text = request.app.state.recall_store.get(entity)
+    ledger = get_ledger(_ledger_id(request))
+    doc = ledger.entity_document(entity)
+    text = _pick_latest_body_text(doc)
+
+    if text is None:
+        text = _latest_memory_text(ledger, entity)
+
+    if text is None:
+        text = request.app.state.recall_store.get(entity)
+
     if text is None:
         raise HTTPException(404, detail="Not Found")
+
+    request.app.state.recall_store[entity] = text
     return {"entity": entity, "text": text}
 
 
