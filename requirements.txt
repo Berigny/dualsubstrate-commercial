@@ -14,5 +14,3 @@ prometheus-client>=0.20
 grpcio-tools>=1.59
 googleapis-common-protos>=1.61
 
-# Streamlit demo
-streamlit>=1.32
