@@ -106,3 +106,37 @@ def test_anchor_persists_full_memory_text(client):
     assert latest["text"] == text
     assert latest["timestamp"] > 0
     assert latest["prime_annotations"][0]["prime"] == PRIME_ARRAY[0]
+
+
+def test_retrieve_prefers_persisted_body(client):
+    entity = "ledger-backed"
+    memory_text = "memory fallback"
+    body_text = "ledger body content"
+
+    mem_response = client.post(
+        "/memories",
+        headers={"Authorization": "Bearer mvp-secret"},
+        json={
+            "entity": entity,
+            "factors": [{"prime": PRIME_ARRAY[0], "delta": 1}],
+            "text": memory_text,
+        },
+    )
+    assert mem_response.status_code == 200
+
+    body_response = client.put(
+        "/ledger/body",
+        headers={"Authorization": "Bearer mvp-secret"},
+        params={"entity": entity, "prime": 29},
+        json={"text": body_text},
+    )
+    assert body_response.status_code == 200
+
+    retrieve_response = client.get(
+        "/retrieve",
+        headers={"Authorization": "Bearer mvp-secret"},
+        params={"entity": entity},
+    )
+    assert retrieve_response.status_code == 200
+    payload = retrieve_response.json()
+    assert payload == {"entity": entity, "text": body_text}
