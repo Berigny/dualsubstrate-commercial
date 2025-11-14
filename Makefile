@@ -5,19 +5,15 @@ PIP := $(VENV_BIN)/pip
 PYTHON_BIN := $(VENV_BIN)/python
 PYTEST := $(VENV_BIN)/pytest
 UVICORN := $(VENV_BIN)/uvicorn
-STREAMLIT := $(VENV_BIN)/streamlit
-
 APP_MODULE ?= api.main:app
 PYTEST_ARGS ?=
-STREAMLIT_APP ?= streamlit_audio_chat.py
-STREAMLIT_SIMPLE_APP ?= streamlit_simple_audio.py
 CLEAN_SCRIPT := ops/clean_workspace.py
 
 PROTO_DIR := proto
 GEN_PY := api/gen
 OPENAPI_OUT := openapi
 
-.PHONY: help venv setup run test streamlit streamlit-stop streamlit-simple streamlit-simple-stop streamlit-deps grpc.gen grpc.gen.ledger grpc.gen.health grpc.openapi grpc.run clean clean-data
+.PHONY: help venv setup run test grpc.gen grpc.gen.ledger grpc.gen.health grpc.openapi grpc.run clean clean-data
 
 help:
 	@echo "Common targets:"
@@ -25,12 +21,8 @@ help:
 	@echo "  make run      # start FastAPI app with uvicorn --reload"
 	@echo "  make test     # run pytest suite"
 	@echo "  make grpc.gen # regenerate Python gRPC stubs"
-	@echo "  make streamlit # launch Streamlit audio chat demo"
-	@echo "  make streamlit-stop # terminate running Streamlit demo"
-	@echo "  make streamlit-simple # launch simplified audio demo"
-	@echo "  make streamlit-simple-stop # terminate simplified audio demo"
-	@echo "  make clean    # remove virtualenv + Python caches"
-	@echo "  make clean-data # wipe RocksDB data/event logs (stop uvicorn first!)"
+       @echo "  make clean    # remove virtualenv + Python caches"
+       @echo "  make clean-data # wipe RocksDB data/event logs (stop uvicorn first!)"
 
 venv: $(VENV_BIN)/python
 
@@ -38,10 +30,10 @@ $(VENV_BIN)/python:
 	$(PYTHON) -m venv $(VENV)
 
 $(VENV)/.installed: requirements.txt $(VENV_BIN)/python
-	$(PIP) install --upgrade pip
-	$(PIP) install -r requirements.txt
-	$(PIP) install pytest
-	touch $@
+       $(PIP) install --upgrade pip
+       $(PIP) install -r requirements.txt
+       $(PIP) install pytest
+       touch $@
 
 $(VENV)/.grpc-installed: api/requirements.grpc.txt $(VENV)/.installed
 	$(PIP) install -r api/requirements.grpc.txt
@@ -55,23 +47,9 @@ run: setup
 test: setup
 	$(PYTEST) $(PYTEST_ARGS)
 
-streamlit-deps: setup
-
-streamlit: setup
-	$(STREAMLIT) run $(STREAMLIT_APP)
-
-streamlit-stop:
-	- pkill -f "streamlit run $(STREAMLIT_APP)"
-
-streamlit-simple: setup
-	$(STREAMLIT) run $(STREAMLIT_SIMPLE_APP)
-
-streamlit-simple-stop:
-	- pkill -f "streamlit run $(STREAMLIT_SIMPLE_APP)"
-
 clean:
-	rm -rf $(VENV) $(OPENAPI_OUT)
-	$(PYTHON) $(CLEAN_SCRIPT)
+       rm -rf $(VENV) $(OPENAPI_OUT)
+       $(PYTHON) $(CLEAN_SCRIPT)
 
 clean-data:
 	rm -rf data/event.log data/factors data/postings
