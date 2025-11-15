@@ -311,6 +311,7 @@ class Ledger:
             doc = _decode_slots_document(raw_value)
             if not doc:
                 continue
+            # Search is open to every entity regardless of lawfulness.
             slots = doc.get("slots")
             if not isinstance(slots, dict):
                 continue
