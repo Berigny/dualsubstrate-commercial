@@ -1,0 +1,27 @@
+{
+  "11": {
+    "summary": "Aurora evidence trail",
+    "scope": "global",
+    "ontology_refs": ["aurora:scope"]
+  },
+  "13": {
+    "owner": "OpsReview",
+    "definitions": [
+      {"term": "Aurora", "text": "Natural light display"},
+      {"term": "Salience", "text": "Perceived significance"}
+    ]
+  },
+  "17": {
+    "tests": [
+      {
+        "type": "integration",
+        "must_have": ["stable output", "validated metrics"]
+      }
+    ],
+    "refs": [23, 29]
+  },
+  "19": {
+    "summary_ref": 23,
+    "notes": ["capture metrics", "escalate anomalies"]
+  }
+}
