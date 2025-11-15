@@ -3,16 +3,22 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Dict
+from typing import Any, Dict
 
 import requests
 
 from .http_models import PayloadValidationError, TraverseResponse
 
 LEDGER_HEADER = "X-Ledger-ID"
+
+logger = logging.getLogger(__name__)
+
+_ALLOWED_S2_PRIMES = {"11", "13", "17", "19"}
+S2_PAYLOAD_DIAGNOSTIC = "S2_PAYLOAD"
 
 
 class DualSubstrateError(Exception):
@@ -148,6 +154,89 @@ class DualSubstrateClient:
         except PayloadValidationError as exc:
             raise ResponseParseError(
                 "Traverse response payload was malformed", detail=str(exc)
+            ) from exc
+
+    def write_structured_views(
+        self,
+        *,
+        entity: str,
+        facets: Mapping[str | int, Mapping[str, Any]] | None = None,
+        ledger_id: str | None = None,
+        timeout: float | None = None,
+    ) -> Dict[str, Any]:
+        """Persist S2 facets for ``entity`` using the ``/ledger/s2`` endpoint."""
+
+        if not entity or not entity.strip():
+            raise ValueError("entity must be provided")
+
+        headers = dict(self._default_headers)
+        if ledger_id:
+            headers[LEDGER_HEADER] = ledger_id
+
+        params = {"entity": entity}
+
+        normalised: Dict[str, Dict[str, Any]] = {}
+        for prime_key, payload in (facets or {}).items():
+            prime_str = str(prime_key)
+            if prime_str not in _ALLOWED_S2_PRIMES:
+                continue
+            if not isinstance(payload, Mapping):
+                logger.debug(
+                    "%s skipping non-mapping facet for prime %s",
+                    S2_PAYLOAD_DIAGNOSTIC,
+                    prime_str,
+                )
+                continue
+            normalised[prime_str] = dict(payload)
+
+        if logger.isEnabledFor(logging.DEBUG):
+            try:
+                logger.debug(
+                    "%s %s",
+                    S2_PAYLOAD_DIAGNOSTIC,
+                    json.dumps(normalised, ensure_ascii=False, sort_keys=True),
+                )
+            except (TypeError, ValueError):  # pragma: no cover - diagnostics only
+                logger.debug("%s %r", S2_PAYLOAD_DIAGNOSTIC, normalised)
+
+        response = self._session.put(
+            f"{self._base}/ledger/s2",
+            headers=headers or None,
+            params=params,
+            json=normalised,
+            timeout=timeout or float(os.getenv("DUALSUBSTRATE_HTTP_TIMEOUT", "10")),
+        )
+
+        status = response.status_code
+        detail = _extract_detail(response)
+
+        if status == 422:
+            raise ValidationError(
+                "Structured views request rejected", status_code=status, detail=detail
+            )
+        if status == 429:
+            raise RateLimitError(
+                "Structured views request rate limited", status_code=status, detail=detail
+            )
+        if 500 <= status <= 599:
+            raise ServerError(
+                "Server error during structured views write",
+                status_code=status,
+                detail=detail,
+            )
+        if status != 200:
+            raise UnexpectedResponseError(
+                f"Unexpected status code {status} from structured views write",
+                status_code=status,
+                detail=detail,
+            )
+
+        try:
+            return response.json()
+        except ValueError as exc:
+            raise ResponseParseError(
+                "Structured views response did not contain valid JSON",
+                detail=response.text.strip() or None,
             ) from exc
 
 

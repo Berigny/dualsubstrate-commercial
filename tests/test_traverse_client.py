@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 import pytest
 
 from dualsubstrate_sdk.api_client import (
@@ -33,11 +36,18 @@ class DummySession:
         self.calls = []
 
     def get(self, url, **kwargs):
-        self.calls.append({"url": url, **kwargs})
+        self.calls.append({"method": "GET", "url": url, **kwargs})
         try:
             return self._responses.pop(0)
         except IndexError:  # pragma: no cover - defensive
             raise AssertionError("No response queued for GET call")
+
+    def put(self, url, **kwargs):
+        self.calls.append({"method": "PUT", "url": url, **kwargs})
+        try:
+            return self._responses.pop(0)
+        except IndexError:  # pragma: no cover - defensive
+            raise AssertionError("No response queued for PUT call")
 
 
 def test_traverse_successfully_parses_payload():
@@ -142,3 +152,34 @@ def test_traverse_raises_unexpected_status():
         client.traverse()
 
     assert excinfo.value.status_code == 404
+
+
+def test_write_structured_views_matches_contract(tmp_path):
+    payload_path = Path(__file__).with_name("contracts") / "s2_payload.json"
+    expected_payload = json.loads(payload_path.read_text())
+
+    facets_input = {int(key): value for key, value in expected_payload.items()}
+    facets_input["views"] = {"ignored": True}
+    facets_input["entity"] = "aurora"  # legacy field that must be excluded
+
+    session = DummySession([DummyResponse(200, json_data={"ok": True})])
+    client = DualSubstrateClient(base_url="https://api.test", api_key="token", session=session)
+
+    response = client.write_structured_views(
+        entity="aurora",
+        facets=facets_input,
+        ledger_id="ledger-1",
+    )
+
+    assert response == {"ok": True}
+    assert session.calls, "expected HTTP call to be recorded"
+
+    call = session.calls[0]
+    assert call["method"] == "PUT"
+    assert call["url"] == "https://api.test/ledger/s2"
+    assert call["params"] == {"entity": "aurora"}
+    assert call["headers"]["Authorization"] == "Bearer token"
+    assert call["headers"]["X-Ledger-ID"] == "ledger-1"
+    assert call["json"] == expected_payload
+    assert "entity" not in call["json"]
+    assert "views" not in call["json"]
