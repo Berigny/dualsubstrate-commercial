@@ -167,6 +167,21 @@ def test_search_all_mode_includes_all_slots(client):
     assert scores == sorted(scores, reverse=True)
 
 
+def test_search_slots_mode_combines_s1_and_s2(client):
+    entities, headers = _seed_search_content(client)
+
+    resp = client.get(
+        "/search",
+        headers=headers,
+        params={"q": "aurora", "mode": "slots"},
+    )
+    assert resp.status_code == 200, resp.text
+    results = resp.json().get("results", [])
+    assert any(row["entity"] == entities["s1_primary"] for row in results)
+    assert any(row["entity"] == entities["s2_primary"] for row in results)
+    assert all(row["prime"] in {2, 3, 5, 7, 11, 13, 17, 19} for row in results)
+
+
 def test_search_rejects_unknown_mode(client):
     _, headers = _seed_search_content(client)
 

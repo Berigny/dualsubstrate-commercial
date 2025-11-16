@@ -52,6 +52,20 @@ _SEARCH_MODE_CONFIG: Dict[str, Dict[str, object]] = {
         "prime_weights": {},
         "default_weight": 0.75,
     },
+    "slots": {
+        "slots": ("S1", "S2"),
+        "prime_weights": {
+            2: 1.0,
+            3: 0.95,
+            5: 0.9,
+            7: 0.85,
+            11: 0.8,
+            13: 0.75,
+            17: 0.7,
+            19: 0.65,
+        },
+        "default_weight": 0.65,
+    },
     "all": {
         "slots": ("S1", "S2", "body"),
         "prime_weights": {
