@@ -504,6 +504,25 @@ def traverse_paths(
     }
 
 
+@app.post("/search/index")
+def build_search_index_endpoint(
+    request: Request,
+    entity: str | None = Query(None, description="Entity identifier to index."),
+    force: bool = Query(
+        False,
+        description="Force re-indexing even if a cached search index is available.",
+    ),
+    _: str = Depends(require_key),
+):
+    ledger = get_ledger(_ledger_id(request))
+    target_entity = _entity_from_request(entity, request, allow_default=True)
+    try:
+        payload = ledger.build_search_index(target_entity, force=force)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {"status": "indexed", **payload}
+
+
 @app.get("/search")
 def search(
     request: Request,

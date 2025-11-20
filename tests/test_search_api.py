@@ -191,3 +191,49 @@ def test_search_rejects_unknown_mode(client):
         params={"q": "aurora", "mode": "unknown"},
     )
     assert resp.status_code == 422
+
+
+def test_build_search_index_endpoint_returns_summary(client):
+    entities, headers = _seed_search_content(client)
+    target_entity = entities["body_primary"]
+
+    resp = client.post(
+        "/search/index",
+        headers=headers,
+        params={"entity": target_entity},
+    )
+    assert resp.status_code == 200, resp.text
+    payload = resp.json()
+    assert payload["status"] == "indexed"
+    assert payload["entity"] == target_entity
+    assert payload["entries"] >= 1
+    assert payload["sources"]["body"] >= 1
+    assert isinstance(payload.get("samples"), list)
+    assert payload.get("cached") is False
+
+
+def test_build_search_index_endpoint_supports_force_refresh(client):
+    entities, headers = _seed_search_content(client)
+    target_entity = entities["s1_primary"]
+
+    resp_initial = client.post(
+        "/search/index",
+        headers=headers,
+        params={"entity": target_entity},
+    )
+    assert resp_initial.status_code == 200, resp_initial.text
+    cached_resp = client.post(
+        "/search/index",
+        headers=headers,
+        params={"entity": target_entity},
+    )
+    assert cached_resp.status_code == 200, cached_resp.text
+    assert cached_resp.json().get("cached") is True
+
+    forced_resp = client.post(
+        "/search/index",
+        headers=headers,
+        params={"entity": target_entity, "force": "true"},
+    )
+    assert forced_resp.status_code == 200, forced_resp.text
+    assert forced_resp.json().get("cached") is False

@@ -109,6 +109,15 @@ def _make_snippet(text: str, needle: str, radius: int = 40) -> str:
     return f"{prefix}{text[start:end]}{suffix}"
 
 
+def _preview_text(text: str, limit: int = 160) -> str:
+    """Return a compact single-line preview for debugging responses."""
+
+    cleaned = text.strip()
+    if len(cleaned) <= limit:
+        return cleaned
+    return f"{cleaned[: limit - 1]}…"
+
+
 def _extract_entity_from_slot_key(raw_key: bytes | str) -> str:
     if isinstance(raw_key, bytes):
         suffix = raw_key[len(SLOTS_PREFIX) :]
@@ -231,6 +240,8 @@ class Ledger:
         self.automorphism = CycleAutomorphismService(
             self.inference_store, primes=PRIME_ARRAY
         )
+        self._search_index_cache: Dict[str, List[Dict[str, object]]] = {}
+        self._search_index_meta: Dict[str, Dict[str, object]] = {}
 
     def close(self):
         """Close the database connections."""
@@ -301,6 +312,109 @@ class Ledger:
     def entity_document(self, entity: str) -> Dict:
         """Return the structured S1/S2/body document for ``entity``."""
         return self._load_slots_doc(entity)
+
+    def _collect_search_index_entries(
+        self, entity: str
+    ) -> Tuple[List[Dict[str, object]], Dict[str, int]]:
+        doc = self._load_slots_doc(entity)
+        slots = doc.get("slots")
+        entries: List[Dict[str, object]] = []
+        source_counts = {"S1": 0, "S2": 0, "body": 0}
+        if not isinstance(slots, dict):
+            return entries, source_counts
+
+        for slot_name in ("S1", "S2"):
+            bucket = slots.get(slot_name)
+            if not isinstance(bucket, dict):
+                continue
+            for prime_key, slot_payload in bucket.items():
+                try:
+                    prime = int(prime_key)
+                except (TypeError, ValueError):
+                    continue
+                if not isinstance(slot_payload, dict):
+                    continue
+                seen_text = False
+                for candidate in _iter_strings(slot_payload):
+                    text_value = candidate.strip()
+                    if not text_value:
+                        continue
+                    entries.append(
+                        {
+                            "slot": slot_name,
+                            "prime": prime,
+                            "text": text_value,
+                            "length": len(text_value),
+                        }
+                    )
+                    seen_text = True
+                if seen_text:
+                    source_counts[slot_name] += 1
+
+        body_bucket = slots.get("body")
+        if isinstance(body_bucket, dict):
+            for prime_key, body_payload in body_bucket.items():
+                try:
+                    prime = int(prime_key)
+                except (TypeError, ValueError):
+                    continue
+                if not isinstance(body_payload, dict):
+                    continue
+                text_value = body_payload.get("text") or body_payload.get("value")
+                if not isinstance(text_value, str):
+                    continue
+                cleaned = text_value.strip()
+                if not cleaned:
+                    continue
+                entry: Dict[str, object] = {
+                    "slot": "body",
+                    "prime": prime,
+                    "text": cleaned,
+                    "length": len(cleaned),
+                }
+                digest = body_payload.get("hash")
+                if isinstance(digest, str):
+                    entry["hash"] = digest
+                entries.append(entry)
+                source_counts["body"] += 1
+
+        return entries, source_counts
+
+    def build_search_index(self, entity: str, *, force: bool = False) -> Dict[str, object]:
+        normalized_entity = (entity or "").strip()
+        if not normalized_entity:
+            raise ValueError("entity must not be empty")
+
+        cached_meta = self._search_index_meta.get(normalized_entity)
+        if cached_meta and not force:
+            payload = dict(cached_meta)
+            payload["cached"] = True
+            return payload
+
+        entries, source_counts = self._collect_search_index_entries(normalized_entity)
+        timestamp = int(time.time() * 1000)
+        samples = [
+            {
+                "slot": entry["slot"],
+                "prime": entry["prime"],
+                "length": entry["length"],
+                "preview": _preview_text(entry["text"]),
+            }
+            for entry in entries[:5]
+        ]
+        characters_indexed = sum(int(entry["length"]) for entry in entries)
+        metadata: Dict[str, object] = {
+            "entity": normalized_entity,
+            "indexed_at": timestamp,
+            "entries": len(entries),
+            "sources": source_counts,
+            "characters_indexed": characters_indexed,
+            "samples": samples,
+        }
+        self._search_index_cache[normalized_entity] = entries
+        self._search_index_meta[normalized_entity] = dict(metadata)
+        metadata["cached"] = False
+        return metadata
 
     def search_slots(self, query: str, mode: str, *, limit: int = 50) -> List[Dict[str, object]]:
         """Return ranked slot/body matches for ``query`` using ``mode`` weights."""
