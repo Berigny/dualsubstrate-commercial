@@ -1,5 +1,19 @@
 """API layer primitives and schemas for the backend services."""
 
-from .schemas import ContinuousStateSchema, LedgerEntrySchema, LedgerKeySchema
+from .schemas import (
+    ActionRequestSchema,
+    CoherenceResponseSchema,
+    ContinuousStateSchema,
+    LedgerEntrySchema,
+    LedgerKeySchema,
+    PolicyDecisionSchema,
+)
 
-__all__ = ["ContinuousStateSchema", "LedgerEntrySchema", "LedgerKeySchema"]
+__all__ = [
+    "ActionRequestSchema",
+    "CoherenceResponseSchema",
+    "ContinuousStateSchema",
+    "LedgerEntrySchema",
+    "LedgerKeySchema",
+    "PolicyDecisionSchema",
+]

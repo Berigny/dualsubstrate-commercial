@@ -22,6 +22,8 @@ from openai import OpenAI
 from prometheus_client import make_asgi_app
 from rocksdict import Rdict
 
+from backend.api.governance_routes import router as governance_router
+from backend.api.http import router as ledger_router
 from backend.routers import qp_rest
 
 
@@ -195,6 +197,8 @@ app.add_middleware(
 metrics_app = make_asgi_app()
 app.mount("/metrics", metrics_app)
 app.include_router(qp_rest.router)
+app.include_router(ledger_router)
+app.include_router(governance_router)
 
 
 @app.get("/health", include_in_schema=False)
