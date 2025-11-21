@@ -3,19 +3,43 @@
 from __future__ import annotations
 
 import json
+import math
+import re
 from datetime import datetime
 from threading import RLock
-from typing import MutableMapping, Optional
+from typing import Any, Iterable, Mapping, MutableMapping, Optional
 
 from backend.fieldx_kernel.models import ContinuousState, LedgerEntry, LedgerKey
+from backend.search.token_index import TokenPrimeIndex, normalise_text
+
+
+def _collect_text_fragments(value: Any) -> Iterable[str]:
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, Mapping):
+        for item in value.values():
+            yield from _collect_text_fragments(item)
+    elif isinstance(value, (list, tuple, set)):
+        for item in value:
+            yield from _collect_text_fragments(item)
+
+
+def _tokens_from_metadata(metadata: Mapping[str, Any]) -> list[str]:
+    fragments = list(_collect_text_fragments(metadata))
+    if not fragments:
+        return []
+
+    normalised_text = normalise_text(" ".join(fragments))
+    return re.findall(r"[a-z0-9]+", normalised_text)
 
 
 class LedgerStoreV2:
     """Ledger storage that persists entries in a RocksDB dictionary."""
 
-    def __init__(self, db: MutableMapping[bytes, bytes]):
+    def __init__(self, db: MutableMapping[bytes, bytes], token_index: TokenPrimeIndex | None = None):
         self._db = db
         self._lock = RLock()
+        self._token_index = token_index
 
     def _encode(self, entry: LedgerEntry) -> bytes:
         payload = {
@@ -50,10 +74,15 @@ class LedgerStoreV2:
     def write(self, entry: LedgerEntry) -> None:
         """Persist the ledger entry using its path as the key."""
 
-        encoded_key = entry.key.as_path().encode()
+        entry_id = entry.key.as_path()
+        primes = self._index_entry(entry)
+
+        encoded_key = entry_id.encode()
         encoded_entry = self._encode(entry)
         with self._lock:
             self._db[encoded_key] = encoded_entry
+            if primes:
+                self._token_index.update_inverted_index(primes, entry_id)
 
     def read(self, ledger_id: str) -> Optional[LedgerEntry]:
         """Retrieve a ledger entry by its encoded identifier path."""
@@ -71,3 +100,21 @@ class LedgerStoreV2:
 
     def get(self, key: LedgerKey) -> Optional[LedgerEntry]:  # pragma: no cover - thin wrapper
         return self.read(key.as_path())
+
+    def _index_entry(self, entry: LedgerEntry) -> list[int]:
+        if self._token_index is None:
+            return []
+
+        tokens = _tokens_from_metadata(entry.state.metadata)
+        if not tokens:
+            return []
+
+        unique_tokens = list(dict.fromkeys(tokens))
+        primes = self._token_index.primes_for_tokens(unique_tokens)
+
+        metadata = dict(entry.state.metadata)
+        metadata["token_primes"] = primes
+        metadata["token_prime_product"] = math.prod(primes) if primes else None
+        entry.state.metadata = metadata
+
+        return primes

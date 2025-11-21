@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from backend.api.schemas import LedgerEntrySchema
 from backend.fieldx_kernel import LedgerKey, LedgerStore
 from backend.fieldx_kernel.substrate import LedgerStoreV2
+from backend.search.token_index import TokenPrimeIndex
 
 router = APIRouter(prefix="/ledger", tags=["ledger"])
 
@@ -35,8 +36,8 @@ def get_db(request: Request):
     return db
 
 
-def get_ledger_store(db=Depends(get_db)) -> LedgerStoreV2:
-    return LedgerStoreV2(db)
+def get_ledger_store(request: Request, db=Depends(get_db)) -> LedgerStoreV2:
+    return LedgerStoreV2(db, token_index=TokenPrimeIndex(request.app))
 
 
 @router.post("/write", response_model=LedgerEntrySchema)
