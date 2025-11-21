@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any, Dict, Mapping, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -79,3 +79,42 @@ class LedgerEntrySchema(BaseModel):
             created_at=entry.created_at,
             notes=entry.notes,
         )
+
+
+class ActionRequestSchema(BaseModel):
+    """Schema describing an action to evaluate for safety and coherence."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    actor: str = Field(..., description="Agent or system requesting the action")
+    action: str = Field(..., description="Name of the requested action")
+    key: LedgerKeySchema | None = Field(
+        default=None, description="Optional ledger key associated with the action"
+    )
+    parameters: Mapping[str, float] = Field(
+        default_factory=dict, description="Action parameters for analysis"
+    )
+
+
+class PolicyDecisionSchema(BaseModel):
+    """Ethics layer decision combining lawfulness and grace."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    action: str
+    key: LedgerKeySchema | None = None
+    lawfulness: float
+    grace: float
+    permitted: bool
+
+
+class CoherenceResponseSchema(BaseModel):
+    """Response describing coherence analysis for an action request."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    action: str
+    coherence_score: float
+    lattice_point: Sequence[int]
+    steps: Sequence[int]
+
