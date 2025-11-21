@@ -1,239 +1,117 @@
+import os
 import uuid
 
-API_KEY = "mvp-secret"
+import pytest
+from starlette.testclient import TestClient
+
+from backend.main import app as backend_app
 
 
-def _create_ledger(client, ledger_id: str):
-    resp = client.post(
-        "/admin/ledgers",
-        headers={"x-api-key": API_KEY},
-        json={"ledger_id": ledger_id},
-    )
-    assert resp.status_code == 200, resp.text
-
-
-def _seed_search_content(client):
-    ledger_id = f"spec-ledger-{uuid.uuid4().hex[:8]}"
-    headers = {"x-api-key": API_KEY, "X-Ledger-ID": ledger_id}
-    _create_ledger(client, ledger_id)
-
-    # --- S1 slots -----------------------------------------------------
-    entity_primary = "s1-alpha"
-    entity_secondary = "s1-beta"
-    resp = client.put(
-        "/ledger/s1",
-        headers=headers,
-        json={
-            "entity": entity_primary,
-            "slots": [
-                {"prime": 2, "body_prime": 23, "title": "Aurora aurora beacon"}
-            ],
+def _write_entry(
+    client: TestClient,
+    *,
+    text: str,
+    namespace: str = "default",
+    metadata: dict | None = None,
+) -> str:
+    identifier = f"entry-{uuid.uuid4().hex[:8]}"
+    entry_id = f"{namespace}:{identifier}"
+    payload_metadata = {"summary": text}
+    if metadata:
+        payload_metadata.update(metadata)
+    payload = {
+        "key": {"namespace": namespace, "identifier": identifier},
+        "state": {
+            "coordinates": {},
+            "phase": "test",
+            "metadata": payload_metadata,
         },
-    )
-    assert resp.status_code == 200, resp.text
-    resp = client.put(
-        "/ledger/s1",
-        headers=headers,
-        json={
-            "entity": entity_secondary,
-            "slots": [
-                {"prime": 5, "body_prime": 29, "title": "Aurora insight"}
-            ],
-        },
-    )
-    assert resp.status_code == 200, resp.text
+    }
 
-    # --- S2 slots -----------------------------------------------------
-    s2_primary = "s2-alpha"
-    s2_secondary = "s2-beta"
-    metrics_payload = {"dE": -1.0, "dDrift": -1.5, "dRetention": 1.1, "K": 0.0}
-    for entity in (s2_primary, s2_secondary):
-        resp = client.patch(
-            f"/ledger/metrics?entity={entity}", headers=headers, json=metrics_payload
-        )
-        assert resp.status_code == 200, resp.text
-    resp = client.put(
-        f"/ledger/s2?entity={s2_primary}",
-        headers=headers,
-        json={"11": {"overview": "Aurora evidence"}},
-    )
+    resp = client.post("/ledger/write", json=payload)
     assert resp.status_code == 200, resp.text
-    resp = client.put(
-        f"/ledger/s2?entity={s2_secondary}",
-        headers=headers,
-        json={"19": {"notes": ["Aurora log"]}},
-    )
-    assert resp.status_code == 200, resp.text
-
-    # --- body slots ---------------------------------------------------
-    body_primary = "body-alpha"
-    body_secondary = "body-beta"
-    resp = client.put(
-        f"/ledger/body?entity={body_primary}&prime=23",
-        headers=headers,
-        json={"content_type": "text/plain", "text": "Aurora aurora luminous arc"},
-    )
-    assert resp.status_code == 200, resp.text
-    resp = client.put(
-        f"/ledger/body?entity={body_secondary}&prime=29",
-        headers=headers,
-        json={"content_type": "text/plain", "text": "Aurora sketch"},
-    )
-    assert resp.status_code == 200, resp.text
-
-    return {
-        "s1_primary": entity_primary,
-        "s1_secondary": entity_secondary,
-        "s2_primary": s2_primary,
-        "s2_secondary": s2_secondary,
-        "body_primary": body_primary,
-        "body_secondary": body_secondary,
-    }, headers
+    return entry_id
 
 
-def test_search_s1_mode_ranking(client):
-    entities, headers = _seed_search_content(client)
+@pytest.fixture()
+def search_client(tmp_path):
+    original_path = os.environ.get("DB_PATH")
+    os.environ["DB_PATH"] = str(tmp_path)
 
-    resp = client.get(
-        "/search",
-        headers=headers,
-        params={"q": "aurora", "mode": "s1"},
+    try:
+        with TestClient(backend_app) as client:
+            yield client
+    finally:
+        if original_path is None:
+            os.environ.pop("DB_PATH", None)
+        else:
+            os.environ["DB_PATH"] = original_path
+
+
+def test_search_indexes_written_entry(search_client):
+    entry_id = _write_entry(
+        search_client, text="Dual Substrate ledger entry with explicit metadata"
     )
+
+    resp = search_client.get("/search", params={"q": "Dual Substrate"})
     assert resp.status_code == 200, resp.text
+
     payload = resp.json()
-    results = payload.get("results", [])
-    assert len(results) >= 2
-    assert results[0]["entity"] == entities["s1_primary"]
-    assert results[0]["prime"] == 2
-    assert results[0]["score"] >= results[1]["score"]
-    assert "aurora" in results[0]["snippet"].lower()
-    assert results[1]["entity"] == entities["s1_secondary"]
-    assert results[1]["prime"] == 5
+    assert payload["query"] == "Dual Substrate"
+    assert payload["mode"] == "any"
+
+    matches = {
+        row["entry_id"]: row
+        for row in payload.get("results", [])
+        if row.get("entry_id")
+    }
+
+    assert entry_id in matches
+    result = matches[entry_id]
+    assert result["score"] > 0
+    assert "dual substrate" in result["snippet"].lower()
+    assert result["entry"]["key"]["identifier"] in entry_id
 
 
-def test_search_s2_mode_ranking(client):
-    entities, headers = _seed_search_content(client)
-
-    resp = client.get(
-        "/search",
-        headers=headers,
-        params={"q": "aurora", "mode": "s2"},
+def test_search_mode_all_requires_all_tokens(search_client):
+    entry_with_all = _write_entry(
+        search_client, text="Dual Substrate signal includes both tokens"
     )
-    assert resp.status_code == 200, resp.text
-    results = resp.json().get("results", [])
-    assert len(results) >= 2
-    assert results[0]["entity"] == entities["s2_primary"]
-    assert results[0]["prime"] == 11
-    assert results[1]["entity"] == entities["s2_secondary"]
-    assert results[1]["prime"] == 19
-    scores = [row["score"] for row in results[:2]]
+    entry_partial = _write_entry(search_client, text="Dual channel only")
+
+    any_resp = search_client.get("/search", params={"q": "Dual Substrate", "mode": "any"})
+    assert any_resp.status_code == 200, any_resp.text
+    any_ids = [row.get("entry_id") for row in any_resp.json().get("results", [])]
+    assert entry_with_all in any_ids
+    assert entry_partial in any_ids
+    scores = [row["score"] for row in any_resp.json()["results"] if row.get("entry_id") in {entry_with_all, entry_partial}]
     assert scores == sorted(scores, reverse=True)
 
+    all_resp = search_client.get("/search", params={"q": "Dual Substrate", "mode": "all"})
+    assert all_resp.status_code == 200, all_resp.text
+    all_ids = [row.get("entry_id") for row in all_resp.json().get("results", [])]
+    assert entry_with_all in all_ids
+    assert entry_partial not in all_ids
 
-def test_search_body_mode_ranking(client):
-    entities, headers = _seed_search_content(client)
 
-    resp = client.get(
-        "/search",
-        headers=headers,
-        params={"q": "aurora", "mode": "body"},
+def test_search_indexes_body_metadata(search_client):
+    entry_id = _write_entry(
+        search_client,
+        text="Annotation body mentions Dual Substrate in nested structures",
+        metadata={"body": {"text": "Dual Substrate narrative in body content"}},
     )
+
+    resp = search_client.get("/search", params={"q": "Dual Substrate"})
     assert resp.status_code == 200, resp.text
     results = resp.json().get("results", [])
-    assert len(results) >= 2
-    assert results[0]["entity"] == entities["body_primary"]
-    assert results[0]["prime"] == 23
-    assert results[1]["entity"] == entities["body_secondary"]
-    assert results[1]["prime"] == 29
-    assert results[0]["score"] > results[1]["score"]
+    assert any(row.get("entry_id") == entry_id and row.get("score", 0) > 0 for row in results)
 
 
-def test_search_all_mode_includes_all_slots(client):
-    entities, headers = _seed_search_content(client)
+def test_search_rejects_unknown_mode(search_client):
+    _write_entry(search_client, text="Dual Substrate fallback")
 
-    resp = client.get(
+    resp = search_client.get(
         "/search",
-        headers=headers,
-        params={"q": "aurora", "mode": "all"},
-    )
-    assert resp.status_code == 200, resp.text
-    results = resp.json().get("results", [])
-    assert len(results) >= 4
-    entities_seen = {row["entity"] for row in results}
-    assert entities["s1_primary"] in entities_seen
-    assert entities["s2_primary"] in entities_seen
-    assert entities["body_primary"] in entities_seen
-    scores = [row["score"] for row in results[:5]]
-    assert scores == sorted(scores, reverse=True)
-
-
-def test_search_slots_mode_combines_s1_and_s2(client):
-    entities, headers = _seed_search_content(client)
-
-    resp = client.get(
-        "/search",
-        headers=headers,
-        params={"q": "aurora", "mode": "slots"},
-    )
-    assert resp.status_code == 200, resp.text
-    results = resp.json().get("results", [])
-    assert any(row["entity"] == entities["s1_primary"] for row in results)
-    assert any(row["entity"] == entities["s2_primary"] for row in results)
-    assert all(row["prime"] in {2, 3, 5, 7, 11, 13, 17, 19} for row in results)
-
-
-def test_search_rejects_unknown_mode(client):
-    _, headers = _seed_search_content(client)
-
-    resp = client.get(
-        "/search",
-        headers=headers,
-        params={"q": "aurora", "mode": "unknown"},
+        params={"q": "Dual Substrate", "mode": "unsupported"},
     )
     assert resp.status_code == 422
-
-
-def test_build_search_index_endpoint_returns_summary(client):
-    entities, headers = _seed_search_content(client)
-    target_entity = entities["body_primary"]
-
-    resp = client.post(
-        "/search/index",
-        headers=headers,
-        params={"entity": target_entity},
-    )
-    assert resp.status_code == 200, resp.text
-    payload = resp.json()
-    assert payload["status"] == "indexed"
-    assert payload["entity"] == target_entity
-    assert payload["entries"] >= 1
-    assert payload["sources"]["body"] >= 1
-    assert isinstance(payload.get("samples"), list)
-    assert payload.get("cached") is False
-
-
-def test_build_search_index_endpoint_supports_force_refresh(client):
-    entities, headers = _seed_search_content(client)
-    target_entity = entities["s1_primary"]
-
-    resp_initial = client.post(
-        "/search/index",
-        headers=headers,
-        params={"entity": target_entity},
-    )
-    assert resp_initial.status_code == 200, resp_initial.text
-    cached_resp = client.post(
-        "/search/index",
-        headers=headers,
-        params={"entity": target_entity},
-    )
-    assert cached_resp.status_code == 200, cached_resp.text
-    assert cached_resp.json().get("cached") is True
-
-    forced_resp = client.post(
-        "/search/index",
-        headers=headers,
-        params={"entity": target_entity, "force": "true"},
-    )
-    assert forced_resp.status_code == 200, forced_resp.text
-    assert forced_resp.json().get("cached") is False
