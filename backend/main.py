@@ -22,6 +22,7 @@ from openai import OpenAI
 from prometheus_client import make_asgi_app
 from rocksdict import Rdict
 
+from backend.api.admin import router as admin_router
 from backend.api.governance_routes import router as governance_router
 from backend.api.http import router as ledger_router, search_router
 from backend.routers import qp_rest
@@ -199,6 +200,7 @@ app.mount("/metrics", metrics_app)
 app.include_router(qp_rest.router)
 app.include_router(ledger_router)
 app.include_router(search_router)
+app.include_router(admin_router)
 app.include_router(governance_router)
 
 
