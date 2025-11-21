@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 from typing import Iterable, List, Sequence
 
 from backend.fieldx_kernel.substrate.ledger_store_v2 import _collect_text_fragments
@@ -78,7 +77,7 @@ def full_text_score(text: str, tokens: Sequence[str]) -> tuple[float, str]:
     if not cleaned_tokens:
         return 0.0, ""
 
-    lowered_text = normalise_text(text)
+    lowered_text = text.lower()
     score = float(sum(lowered_text.count(token) for token in cleaned_tokens))
     if score == 0:
         return 0.0, ""
@@ -115,8 +114,7 @@ def search(
 ) -> List[dict]:
     """Search ledger entries using the inverted token index and full-text overlap."""
 
-    normalised_query = normalise_text(query)
-    tokens = re.findall(r"[a-z0-9]+", normalised_query)
+    tokens = normalise_text(query)
     if not tokens:
         return []
 

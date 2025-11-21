@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import math
-import re
 from datetime import datetime
 from threading import RLock
 from typing import Any, Iterable, Mapping, MutableMapping, Optional
@@ -118,14 +117,12 @@ class LedgerStoreV2:
             entry.state.metadata = metadata
             return []
 
-        normalised_text = normalise_text(full_text)
-        tokens = re.findall(r"[a-z0-9]+", normalised_text)
+        tokens = normalise_text(full_text)
         if not tokens:
             entry.state.metadata = metadata
             return []
 
-        unique_tokens = list(dict.fromkeys(tokens))
-        primes = self._token_index.primes_for_tokens(unique_tokens)
+        primes = self._token_index.primes_for_tokens(tokens)
 
         metadata["token_primes"] = primes
         metadata["token_prime_product"] = math.prod(primes) if primes else None
