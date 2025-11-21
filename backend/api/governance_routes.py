@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
-from backend.api.http import ledger_store
+from backend.api.http import get_ledger_store
 from backend.api.schemas import (
     ActionRequestSchema,
     CoherenceResponseSchema,
@@ -12,6 +12,7 @@ from backend.api.schemas import (
 )
 from backend.coherence_layer import PolicyEngine
 from backend.ethics_layer import GraceModel, Law
+from backend.fieldx_kernel.substrate import LedgerStoreV2
 from backend.fieldx_kernel.geometry import Lattice
 
 router = APIRouter(tags=["governance"])
@@ -24,7 +25,8 @@ class CoherenceAnalyzer:
         self.dimensions = max(1, dimensions)
 
     def evaluate(self, request: ActionRequestSchema) -> CoherenceResponseSchema:
-        steps_raw = list(request.parameters.values())
+        params = request.parameters or {}
+        steps_raw = [params[key] for key in sorted(params.keys())]
         dims = max(len(steps_raw), self.dimensions)
         lattice = Lattice(dims)
         origin = lattice.origin()
@@ -44,9 +46,12 @@ class CoherenceAnalyzer:
 
 
 coherence_analyzer = CoherenceAnalyzer()
-policy_engine = PolicyEngine(
-    ledger_store=ledger_store, laws=[Law(name="alignment", weight=0.25)], grace=GraceModel()
-)
+
+
+def get_policy_engine(store: LedgerStoreV2 = Depends(get_ledger_store)) -> PolicyEngine:
+    return PolicyEngine(
+        ledger_store=store, laws=[Law(name="alignment", weight=0.25)], grace=GraceModel()
+    )
 
 
 @router.post("/coherence/evaluate", response_model=CoherenceResponseSchema)
@@ -57,13 +62,22 @@ def evaluate_coherence(request: ActionRequestSchema) -> CoherenceResponseSchema:
 
 
 @router.post("/ethics/evaluate", response_model=PolicyDecisionSchema)
-def evaluate_ethics(request: ActionRequestSchema) -> PolicyDecisionSchema:
+def evaluate_ethics(
+    request: ActionRequestSchema,
+    store: LedgerStoreV2 = Depends(get_ledger_store),
+    engine: PolicyEngine = Depends(get_policy_engine),
+) -> PolicyDecisionSchema:
     """Evaluate an action against registered policies and grace model."""
 
     if request.key is None:
         raise HTTPException(status_code=400, detail="Ledger key is required")
 
-    scores = policy_engine.evaluate(request.key.to_model())
+    ledger_id = request.key.to_model().as_path()
+    entry = store.read(ledger_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Ledger entry not found")
+
+    scores = engine.evaluate(request.key.to_model())
     permitted = scores.get("grace", 0.0) >= 0
     return PolicyDecisionSchema(
         action=request.action,
@@ -74,4 +88,4 @@ def evaluate_ethics(request: ActionRequestSchema) -> PolicyDecisionSchema:
     )
 
 
-__all__ = ["coherence_analyzer", "policy_engine", "router"]
+__all__ = ["coherence_analyzer", "get_policy_engine", "router"]
