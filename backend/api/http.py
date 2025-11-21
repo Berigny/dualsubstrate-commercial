@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from backend.api.schemas import LedgerEntrySchema
 from backend.fieldx_kernel import LedgerKey, LedgerStore
 from backend.fieldx_kernel.substrate import LedgerStoreV2
+from backend.search import service as search_service
 from backend.search.token_index import TokenPrimeIndex
 
 router = APIRouter(prefix="/ledger", tags=["ledger"])
+search_router = APIRouter(tags=["search"])
 
 debug_ledger_store = LedgerStore()
 
@@ -70,4 +72,37 @@ def debug_write_entry(entry: LedgerEntrySchema) -> LedgerEntrySchema:
     return LedgerEntrySchema.from_model(model_entry)
 
 
-__all__ = ["debug_ledger_store", "get_ledger_store", "parse_key", "router"]
+@search_router.get("/search")
+def search_entries(
+    request: Request,
+    q: str = Query(..., description="Query string to match against metadata."),
+    mode: str = Query(
+        "any",
+        description="Set combination strategy: 'any' (union) or 'all' (intersection).",
+    ),
+    limit: int = Query(50, ge=1, le=200, description="Maximum number of results."),
+    entity: str | None = Query(None, description="Optional logical entity context."),
+    store: LedgerStoreV2 = Depends(get_ledger_store),
+):
+    token_index = TokenPrimeIndex(request.app)
+
+    try:
+        results = search_service.search(
+            q, store=store, token_index=token_index, mode=mode, limit=limit
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    payload = {"query": q, "mode": mode, "results": results}
+    if entity:
+        payload["entity"] = entity
+    return payload
+
+
+__all__ = [
+    "debug_ledger_store",
+    "get_ledger_store",
+    "parse_key",
+    "router",
+    "search_router",
+]
