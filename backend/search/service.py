@@ -61,6 +61,9 @@ def _combine_text_fragments(metadata: dict | None) -> str:
     if not metadata:
         return ""
 
+    if full_text := metadata.get("full_text"):
+        return str(full_text)
+
     fragments: Iterable[str] = _collect_text_fragments(metadata)
     return " ".join(str(fragment) for fragment in fragments)
 

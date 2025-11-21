@@ -24,13 +24,21 @@ def _collect_text_fragments(value: Any) -> Iterable[str]:
             yield from _collect_text_fragments(item)
 
 
-def _tokens_from_metadata(metadata: Mapping[str, Any]) -> list[str]:
-    fragments = list(_collect_text_fragments(metadata))
-    if not fragments:
-        return []
+def _full_text_for_entry(entry: LedgerEntry) -> str:
+    text = getattr(entry, "text", None)
+    if text:
+        return str(text)
 
-    normalised_text = normalise_text(" ".join(fragments))
-    return re.findall(r"[a-z0-9]+", normalised_text)
+    body = getattr(entry, "body", None)
+    if body is not None:
+        return str(body)
+
+    metadata = entry.state.metadata or {}
+    fragments = list(_collect_text_fragments(metadata))
+    if fragments:
+        return " ".join(str(fragment) for fragment in fragments)
+
+    return ""
 
 
 class LedgerStoreV2:
@@ -75,7 +83,8 @@ class LedgerStoreV2:
         """Persist the ledger entry using its path as the key."""
 
         entry_id = entry.key.as_path()
-        primes = self._index_entry(entry)
+        full_text = _full_text_for_entry(entry)
+        primes = self._index_entry(entry, full_text)
 
         encoded_key = entry_id.encode()
         encoded_entry = self._encode(entry)
@@ -101,18 +110,23 @@ class LedgerStoreV2:
     def get(self, key: LedgerKey) -> Optional[LedgerEntry]:  # pragma: no cover - thin wrapper
         return self.read(key.as_path())
 
-    def _index_entry(self, entry: LedgerEntry) -> list[int]:
+    def _index_entry(self, entry: LedgerEntry, full_text: str) -> list[int]:
+        metadata = dict(entry.state.metadata)
+        metadata["full_text"] = full_text
+
         if self._token_index is None:
+            entry.state.metadata = metadata
             return []
 
-        tokens = _tokens_from_metadata(entry.state.metadata)
+        normalised_text = normalise_text(full_text)
+        tokens = re.findall(r"[a-z0-9]+", normalised_text)
         if not tokens:
+            entry.state.metadata = metadata
             return []
 
         unique_tokens = list(dict.fromkeys(tokens))
         primes = self._token_index.primes_for_tokens(unique_tokens)
 
-        metadata = dict(entry.state.metadata)
         metadata["token_primes"] = primes
         metadata["token_prime_product"] = math.prod(primes) if primes else None
         entry.state.metadata = metadata
