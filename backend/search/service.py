@@ -3,10 +3,39 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Iterable, List, Sequence
 
 from backend.fieldx_kernel.substrate.ledger_store_v2 import _collect_text_fragments
 from backend.search.token_index import TokenPrimeIndex, normalise_text
+
+
+logger = logging.getLogger(__name__)
+
+STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "by",
+    "for",
+    "from",
+    "in",
+    "into",
+    "is",
+    "of",
+    "on",
+    "or",
+    "that",
+    "the",
+    "to",
+    "was",
+    "were",
+    "with",
+}
 
 
 def _load_index_entries(index: TokenPrimeIndex, prime: int) -> set[str]:
@@ -40,10 +69,16 @@ def search_by_primes(
         raise ValueError("mode must be 'any' or 'all'")
 
     postings: list[set[str]] = []
+    posting_sizes: list[int] = []
     for prime in primes:
         entries = _load_index_entries(index, int(prime))
-        if entries:
-            postings.append(entries)
+        postings.append(entries)
+        posting_sizes.append(len(entries))
+
+    logger.debug(
+        "Loaded postings for primes",
+        extra={"mode": cleaned_mode, "primes": list(primes), "posting_sizes": posting_sizes},
+    )
 
     if not postings:
         return []
@@ -52,6 +87,15 @@ def search_by_primes(
         candidates = set.intersection(*postings)
     else:
         candidates = set().union(*postings)
+
+    logger.debug(
+        "Combined postings",
+        extra={
+            "mode": cleaned_mode,
+            "candidate_count": len(candidates),
+            "posting_sizes": posting_sizes,
+        },
+    )
 
     return sorted(candidates)
 
@@ -104,6 +148,58 @@ def full_text_score(text: str, tokens: Sequence[str]) -> tuple[float, str]:
     return score, snippet
 
 
+def _scan_all_entries(store, tokens: Sequence[str], *, limit: int) -> list[dict]:
+    """Scan all ledger entries when the inverted index yields no candidates."""
+
+    try:
+        with store._lock:  # type: ignore[attr-defined]
+            snapshots = list(store._db.items())  # type: ignore[attr-defined]
+    except Exception:  # pragma: no cover - defensive fallback if store internals change
+        return []
+
+    results: list[dict] = []
+    for raw_key, raw_entry in snapshots:
+        try:
+            entry_id = raw_key.decode() if isinstance(raw_key, (bytes, bytearray)) else str(raw_key)
+            entry = store._decode(raw_entry)  # type: ignore[attr-defined]
+        except Exception:  # pragma: no cover - skip malformed rows defensively
+            continue
+
+        text = _combine_text_fragments(entry.state.metadata)
+        score, snippet = full_text_score(text, tokens)
+        if score == 0:
+            continue
+
+        results.append(
+            {
+                "entry": {
+                    "key": {
+                        "namespace": entry.key.namespace,
+                        "identifier": entry.key.identifier,
+                    },
+                    "state": {
+                        "coordinates": entry.state.coordinates,
+                        "phase": entry.state.phase,
+                        "metadata": entry.state.metadata,
+                    },
+                    "created_at": entry.created_at.isoformat(),
+                    "notes": entry.notes,
+                },
+                "score": score,
+                "snippet": snippet,
+                "entry_id": entry_id,
+            }
+        )
+
+    ranked = sorted(results, key=lambda row: row["score"], reverse=True)
+    final_results = ranked[:limit] if limit and limit > 0 else ranked
+    logger.debug(
+        "Linear scan results prepared",
+        extra={"result_count": len(final_results), "scanned_entries": len(results)},
+    )
+    return final_results
+
+
 def search(
     query: str,
     *,
@@ -114,12 +210,46 @@ def search(
 ) -> List[dict]:
     """Search ledger entries using the inverted token index and full-text overlap."""
 
-    tokens = normalise_text(query)
+    raw_tokens = normalise_text(query)
+    tokens = [token for token in raw_tokens if token and token not in STOPWORDS]
+    logger.debug(
+        "Normalised search tokens",
+        extra={"raw_tokens": raw_tokens, "filtered_tokens": tokens},
+    )
     if not tokens:
         return []
 
     token_primes = token_index.primes_for_tokens(tokens)
-    candidate_ids = search_by_primes(token_primes, token_index, mode=mode)
+    logger.debug(
+        "Resolved token primes",
+        extra={"tokens": tokens, "token_primes": token_primes},
+    )
+
+    cleaned_mode = (mode or "any").strip().lower()
+    if cleaned_mode not in {"any", "all"}:
+        raise ValueError("mode must be 'any' or 'all'")
+
+    candidate_ids = search_by_primes(token_primes, token_index, mode=cleaned_mode)
+    effective_mode = cleaned_mode
+    if cleaned_mode == "all" and not candidate_ids and token_primes:
+        logger.debug(
+            "Retrying search with mode='any' after empty intersection",
+            extra={"requested_mode": cleaned_mode, "token_primes": token_primes},
+        )
+        candidate_ids = search_by_primes(token_primes, token_index, mode="any")
+        effective_mode = "any"
+
+    logger.debug(
+        "Search candidates collected",
+        extra={"mode": effective_mode, "candidate_count": len(candidate_ids)},
+    )
+
+    if not candidate_ids:
+        logger.debug(
+            "No candidates from index; falling back to linear scan",
+            extra={"mode": effective_mode, "token_primes": token_primes},
+        )
+        return _scan_all_entries(store, tokens, limit=limit)
 
     results: list[dict] = []
     for entry_id in candidate_ids:
@@ -153,9 +283,12 @@ def search(
         results.append(result)
 
     ranked = sorted(results, key=lambda row: row["score"], reverse=True)
-    if limit and limit > 0:
-        return ranked[:limit]
-    return ranked
+    final_results = ranked[:limit] if limit and limit > 0 else ranked
+    logger.debug(
+        "Returning ranked search results",
+        extra={"mode": effective_mode, "result_count": len(final_results)},
+    )
+    return final_results
 
 
 __all__ = [
