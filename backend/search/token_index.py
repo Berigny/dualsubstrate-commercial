@@ -33,11 +33,10 @@ def _generate_primes(count: int) -> List[int]:
 _PRIME_LIST = _generate_primes(10_000)
 
 
-def normalise_text(text: str) -> str:
-    """Lowercase and collapse whitespace to normalise a token."""
+def normalise_text(text: str) -> List[str]:
+    """Return lowercase ``[a-zA-Z0-9]+`` tokens extracted from ``text``."""
 
-    cleaned = re.sub(r"\s+", " ", text.strip().lower())
-    return cleaned
+    return [token.lower() for token in re.findall(r"[a-zA-Z0-9]+", text)]
 
 
 class TokenPrimeIndex:
@@ -62,7 +61,7 @@ class TokenPrimeIndex:
     def get_or_assign_prime(self, token: str) -> int:
         """Return the assigned prime for ``token`` or allocate a new one."""
 
-        normalised_token = normalise_text(token)
+        normalised_token = token.strip().lower()
         token_key = self._token_key(normalised_token)
         existing = self.db.get(token_key)
         if existing is not None:
@@ -81,7 +80,17 @@ class TokenPrimeIndex:
     def primes_for_tokens(self, tokens: Iterable[str]) -> List[int]:
         """Return primes for ``tokens``, allocating new ones as needed."""
 
-        return [self.get_or_assign_prime(token) for token in tokens]
+        primes: list[int] = []
+        seen: set[str] = set()
+        for token in tokens:
+            normalised = token.strip().lower()
+            if not normalised or normalised in seen:
+                continue
+
+            seen.add(normalised)
+            primes.append(self.get_or_assign_prime(normalised))
+
+        return primes
 
     def update_inverted_index(self, primes: Iterable[int], entry_id: str) -> None:
         """Add ``entry_id`` to the inverted index for each ``prime``."""
