@@ -115,11 +115,26 @@ def search_entries(
     request: Request,
     entity: str = Query(..., description="Logical entity context for the search."),
     q: str | None = Query(None, description="Query string to match against metadata."),
-    mode: str = Query(
-        "any",
+    mode: str | None = Query(
+        None,
         description="Set combination strategy: 'any' (union) or 'all' (intersection).",
     ),
     limit: int = Query(50, ge=1, le=200, description="Maximum number of results."),
+    fuzzy: bool = Query(
+        True,
+        description="Compatibility flag; retained for legacy callers but not required.",
+    ),
+    semantic_weight: float = Query(
+        0.45,
+        ge=0.0,
+        le=1.0,
+        description="Compatibility flag; retained for legacy callers but not required.",
+    ),
+    delta: int = Query(
+        2,
+        ge=0,
+        description="Compatibility flag; retained for legacy callers but not required.",
+    ),
     store: LedgerStoreV2 = Depends(get_ledger_store),
 ):
     token_index = TokenPrimeIndex(request.app)
@@ -165,7 +180,14 @@ def search_entries(
         payload = {"query": cleaned_query, "mode": cleaned_mode, "results": results}
         payload["entity"] = entity
 
-        ctx.update({"result_count": len(results)})
+        ctx.update(
+            {
+                "result_count": len(results),
+                "fuzzy": fuzzy,
+                "semantic_weight": semantic_weight,
+                "delta": delta,
+            }
+        )
 
         return payload
 

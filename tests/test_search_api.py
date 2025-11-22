@@ -154,3 +154,28 @@ def test_search_filters_results_by_entity(search_client):
     result_ids = [row.get("entry_id") for row in payload.get("results", [])]
     assert entry_default in result_ids
     assert all("other-entity" not in (row.get("entry", {}).get("key", {}).get("namespace", "") or "") for row in payload.get("results", []))
+
+
+def test_search_accepts_compatibility_flags(search_client):
+    entry_id = _write_entry(
+        search_client,
+        text="Compatibility parameters should not block search",
+        namespace="default",
+    )
+
+    resp = search_client.get(
+        "/search",
+        params={
+            "entity": "default",
+            "q": "Compatibility",
+            "fuzzy": False,
+            "semantic_weight": 0.9,
+            "delta": 5,
+        },
+    )
+    assert resp.status_code == 200, resp.text
+
+    payload = resp.json()
+    assert payload.get("query") == "Compatibility"
+    assert payload.get("mode") == "any"
+    assert any(row.get("entry_id") == entry_id for row in payload.get("results", []))
