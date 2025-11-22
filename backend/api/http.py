@@ -63,7 +63,12 @@ def write_entry(
     ) as ctx:
         model_entry = entry.to_model()
         store.write(model_entry)
-        ctx.update({"ledger_key": model_entry.key.as_path()})
+        ctx.update(
+            {
+                "ledger_key": model_entry.key.as_path(),
+                "entries_written": 1,
+            }
+        )
         return LedgerEntrySchema.from_model(model_entry)
 
 
@@ -86,7 +91,13 @@ def read_entry(
         if record is None:
             raise HTTPException(status_code=404, detail="Entry not found")
 
-        ctx.update({"namespace": key.namespace, "identifier": key.identifier})
+        ctx.update(
+            {
+                "namespace": key.namespace,
+                "identifier": key.identifier,
+                "entries_returned": 1,
+            }
+        )
         return LedgerEntrySchema.from_model(record)
 
 
