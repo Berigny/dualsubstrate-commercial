@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.api.http import get_ledger_store
@@ -16,6 +18,7 @@ from backend.fieldx_kernel.substrate import LedgerStoreV2
 from backend.fieldx_kernel.geometry import Lattice
 
 router = APIRouter(tags=["governance"])
+LOGGER = logging.getLogger(__name__)
 
 
 class CoherenceAnalyzer:
@@ -48,6 +51,24 @@ class CoherenceAnalyzer:
 coherence_analyzer = CoherenceAnalyzer()
 
 
+def _map_legacy_action(entity: str, deltas: dict[str, float]) -> ActionRequestSchema:
+    """Internal helper to convert legacy ``(entity, deltas)`` payloads.
+
+    The legacy shape provided an ``entity`` string and a mapping of ``deltas``
+    representing parameter steps. This helper produces a canonical
+    ``ActionRequestSchema`` with the entity used as the ``action`` field,
+    a placeholder ``actor`` value, and the deltas forwarded as ``parameters``.
+    It is intentionally not exported or wired to the API yet but allows
+    controlled migration to the canonical contract.
+    """
+
+    return ActionRequestSchema(
+        actor="legacy-client",
+        action=entity,
+        parameters=deltas,
+    )
+
+
 def get_policy_engine(store: LedgerStoreV2 = Depends(get_ledger_store)) -> PolicyEngine:
     return PolicyEngine(
         ledger_store=store, laws=[Law(name="alignment", weight=0.25)], grace=GraceModel()
@@ -56,9 +77,30 @@ def get_policy_engine(store: LedgerStoreV2 = Depends(get_ledger_store)) -> Polic
 
 @router.post("/coherence/evaluate", response_model=CoherenceResponseSchema)
 def evaluate_coherence(request: ActionRequestSchema) -> CoherenceResponseSchema:
-    """Return a coherence score derived from lattice traversal."""
+    """Return a coherence score derived from lattice traversal.
 
-    return coherence_analyzer.evaluate(request)
+    The request must include an ``actor`` and ``action`` identifier. The
+    optional ``parameters`` mapping supplies numeric steps for the lattice
+    traversal, and ``key`` may be provided for downstream ledger correlation.
+    """
+
+    LOGGER.info(
+        "Received coherence evaluation request",
+        extra={"actor": request.actor, "action": request.action},
+    )
+
+    response = coherence_analyzer.evaluate(request)
+
+    LOGGER.info(
+        "Coherence evaluation completed",
+        extra={
+            "actor": request.actor,
+            "action": request.action,
+            "coherence_score": response.coherence_score,
+        },
+    )
+
+    return response
 
 
 @router.post("/ethics/evaluate", response_model=PolicyDecisionSchema)
@@ -67,25 +109,59 @@ def evaluate_ethics(
     store: LedgerStoreV2 = Depends(get_ledger_store),
     engine: PolicyEngine = Depends(get_policy_engine),
 ) -> PolicyDecisionSchema:
-    """Evaluate an action against registered policies and grace model."""
+    """Evaluate an action against registered policies and grace model.
+
+    The request must include ``actor`` and ``action`` identifiers. Provide the
+    optional ``key`` field to point to a ledger entry used during evaluation;
+    ``parameters`` may also be supplied for richer policy contexts.
+    """
+
+    LOGGER.info(
+        "Received ethics evaluation request",
+        extra={"actor": request.actor, "action": request.action},
+    )
 
     if request.key is None:
+        LOGGER.warning(
+            "Ethics evaluation failed validation: missing ledger key",
+            extra={"actor": request.actor, "action": request.action},
+        )
         raise HTTPException(status_code=400, detail="Ledger key is required")
 
     ledger_id = request.key.to_model().as_path()
     entry = store.read(ledger_id)
     if entry is None:
+        LOGGER.warning(
+            "Ethics evaluation failed validation: ledger entry not found",
+            extra={
+                "actor": request.actor,
+                "action": request.action,
+                "ledger_id": ledger_id,
+            },
+        )
         raise HTTPException(status_code=404, detail="Ledger entry not found")
 
     scores = engine.evaluate(request.key.to_model())
     permitted = scores.get("grace", 0.0) >= 0
-    return PolicyDecisionSchema(
+    response = PolicyDecisionSchema(
         action=request.action,
         key=request.key,
         lawfulness=scores.get("lawfulness", 0.0),
         grace=scores.get("grace", 0.0),
         permitted=permitted,
     )
+
+    LOGGER.info(
+        "Ethics evaluation completed",
+        extra={
+            "actor": request.actor,
+            "action": request.action,
+            "ledger_id": ledger_id,
+            "permitted": response.permitted,
+        },
+    )
+
+    return response
 
 
 __all__ = ["coherence_analyzer", "get_policy_engine", "router"]
