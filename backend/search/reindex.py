@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import Iterable
+from typing import Iterable, List, Tuple
 
 from fastapi import FastAPI
 
@@ -55,31 +55,56 @@ def reindex_all(app: FastAPI, *, entity: str | None = None) -> dict:
     token_index = TokenPrimeIndex(app)
     store = LedgerStoreV2(db, token_index=token_index)
 
-    ledger_rows: list[tuple[str, object]] = []
-    index_keys: list[object] = []
+    ledger_rows: List[Tuple[str, object]] = []
+    index_keys: List[object] = []
 
     # Snapshot existing rows so we can safely mutate the DB afterwards.
     with store._lock:  # type: ignore[attr-defined]
-        for raw_key, raw_value in db.items():
-            decoded_key = _decode_key(raw_key)
-            if _is_index_key(decoded_key):
-                index_keys.append(raw_key)
-                continue
+        snapshot_items = list(db.items())
 
-            ledger_rows.append((decoded_key, raw_value))
+    for raw_key, raw_value in snapshot_items:
+        decoded_key = _decode_key(raw_key)
+        if _is_index_key(decoded_key):
+            index_keys.append(raw_key)
+            continue
 
-        for idx_key in index_keys:
-            db.pop(idx_key, None)
+        ledger_rows.append((decoded_key, raw_value))
 
-    logger.info("Cleared %s index keys", len(index_keys))
+    if index_keys:
+        with store._lock:  # type: ignore[attr-defined]
+            for idx_key in index_keys:
+                try:
+                    del db[idx_key]
+                except KeyError:
+                    continue
+
+    logger.info(
+        "Starting reindex",
+        extra={
+            "entity": entity,
+            "ledger_rows": len(ledger_rows),
+            "index_keys_cleared": len(index_keys),
+        },
+    )
 
     tokens_seen: set[str] = set()
     postings_written = 0
     entries_reindexed = 0
 
     for entry_id, raw_value in ledger_rows:
+        if isinstance(raw_value, str):
+            raw_bytes = raw_value.encode()
+        elif isinstance(raw_value, (bytes, bytearray)):
+            raw_bytes = raw_value
+        else:
+            logger.warning(
+                "Skipping unsupported ledger payload",  # type: ignore[unreachable]
+                extra={"entry_id": entry_id, "payload_type": type(raw_value).__name__},
+            )
+            continue
+
         try:
-            entry = store._decode(raw_value)  # type: ignore[attr-defined]
+            entry = store._decode(raw_bytes)  # type: ignore[attr-defined]
         except Exception:
             logger.exception("Skipping malformed ledger row", extra={"entry_id": entry_id})
             continue
