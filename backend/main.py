@@ -11,7 +11,7 @@ import threading
 import time
 from contextlib import asynccontextmanager
 from io import BytesIO
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import requests
 from fastapi import FastAPI, HTTPException, WebSocket
@@ -296,6 +296,40 @@ def proxy_exact(key_hex: str) -> JSONResponse:
     except ValueError as exc:  # pragma: no cover - backend bug guard
         raise HTTPException(status_code=502, detail=f"Invalid JSON from backend: {exc}") from exc
     return JSONResponse(data)
+
+
+# === LEGACY COMPATIBILITY SHIM — KEEP FOREVER ===
+# Old frontends call /search — this proxy keeps them working with zero changes
+@app.get("/search")
+@app.post("/search")  # in case anyone used POST
+async def search_legacy(
+    entity: str,
+    q: Optional[str] = None,
+    mode: Optional[str] = None,
+    limit: int = 10,
+    fuzzy: bool = True,
+    semantic_weight: float = 0.45,
+    delta: int = 2,
+):
+    """
+    Legacy /search → /memories proxy.
+    Keeps old Streamlit demos alive indefinitely.
+    """
+    # Forward all params to the real endpoint
+    response = await memories(
+        entity=entity,
+        limit=limit,
+        fuzzy=fuzzy,
+        semantic_weight=semantic_weight,
+        delta=delta
+    )
+
+    # Add deprecation notice for clean future migration
+    response.headers["X-Deprecated-Endpoint"] = "Use /memories instead"
+    response.headers["X-Migration-Date"] = "2026-01-01"
+
+    return response
+# === END SHIM ===
 
 
 configure_from_env()
