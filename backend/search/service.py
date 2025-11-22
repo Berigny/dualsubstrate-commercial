@@ -38,6 +38,15 @@ STOPWORDS = {
 }
 
 
+def _preview_text(text: str, limit: int = 160) -> str:
+    """Return a short, single-line preview for result snippets."""
+
+    cleaned = (text or "").strip()
+    if len(cleaned) <= limit:
+        return cleaned
+    return f"{cleaned[: limit - 1]}…"
+
+
 def _load_index_entries(index: TokenPrimeIndex, prime: int) -> set[str]:
     """Return entry identifiers associated with ``prime`` from the inverted index."""
 
@@ -200,6 +209,64 @@ def _scan_all_entries(store, tokens: Sequence[str], *, limit: int) -> list[dict]
     return final_results
 
 
+def list_recent_entries(store, *, entity: str, limit: int = 50) -> list[dict]:
+    """Return the most recent ledger entries for ``entity``."""
+
+    try:
+        with store._lock:  # type: ignore[attr-defined]
+            snapshots = list(store._db.items())  # type: ignore[attr-defined]
+    except Exception:  # pragma: no cover - defensive fallback
+        logger.warning("Unable to collect ledger snapshots for recent listing")
+        return []
+
+    entries: list[tuple[float, dict]] = []
+    for raw_key, raw_entry in snapshots:
+        try:
+            entry_id = raw_key.decode() if isinstance(raw_key, (bytes, bytearray)) else str(raw_key)
+            entry = store._decode(raw_entry)  # type: ignore[attr-defined]
+        except Exception:  # pragma: no cover - skip malformed rows defensively
+            continue
+
+        if entry.key.namespace != entity:
+            continue
+
+        snippet_source = _combine_text_fragments(entry.state.metadata)
+        snippet = _preview_text(snippet_source)
+        entries.append(
+            (
+                entry.created_at.timestamp(),
+                {
+                    "entry": {
+                        "key": {
+                            "namespace": entry.key.namespace,
+                            "identifier": entry.key.identifier,
+                        },
+                        "state": {
+                            "coordinates": entry.state.coordinates,
+                            "phase": entry.state.phase,
+                            "metadata": entry.state.metadata,
+                        },
+                        "created_at": entry.created_at.isoformat(),
+                        "notes": entry.notes,
+                    },
+                    "score": 0.0,
+                    "snippet": snippet,
+                    "entry_id": entry_id,
+                },
+            )
+        )
+
+    ranked = sorted(entries, key=lambda row: row[0], reverse=True)
+    trimmed = ranked[:limit] if limit and limit > 0 else ranked
+    results = [row[1] for row in trimmed]
+
+    logger.debug(
+        "Prepared recent entries listing",
+        extra={"entity": entity, "result_count": len(results), "scanned_entries": len(entries)},
+    )
+    return results
+
+
 def search(
     query: str,
     *,
@@ -293,6 +360,7 @@ def search(
 
 __all__ = [
     "full_text_score",
+    "list_recent_entries",
     "search",
     "search_by_primes",
 ]
