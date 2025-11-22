@@ -44,6 +44,15 @@ To make sure you are extending the latest backend instead of the legacy surface:
 
 The `chat` repo’s connectivity tab now expects `/ledger/*`, `/search`, and `/admin/reindex` from this backend. After anchoring at least one transcript, press “Build search index” (calls `/admin/reindex`) once per ledger to sync the token cache, then use `/search` for recall debugging.
 
+### Front-end integration guidance
+
+The Streamlit front-end (`chat` repo) still targets the original `/anchor`, `/ledger/s1`, `/search/index`, … endpoints exposed by `api/main.py`. If you are integrating a UI with the new backend service (`backend/main.py`):
+
+- Update any `/search/index` calls to invoke `GET /admin/reindex` once per ledger instead. The legacy endpoint will continue to 404 on the new service.
+- Replace SDK calls that post to `/ledger/s1`, `/ledger/body`, etc. with the new `/ledger/write` & `/ledger/read/{namespace:identifier}` schema, or provide a compatibility shim in `backend/main.py`.
+- Point your Streamlit or other clients at `https://dualsubstrate-commercial.fly.dev/docs#/` for the live Swagger docs covering all current routes on the Fly deployment.
+- When migrating incrementally, run both `api/main.py` and `backend/main.py` locally on separate ports so the front-end can keep using the legacy surface until the new contract is fully wired.
+
 ## Dual-substrate architecture
 
 **Signal split.** A continuous \(\mathbb{R}\) substrate handles gradient-driven pattern search and embedding alignment, while the discrete \(\mathbb{Q}_p\) prime ledger preserves symbolic identity, exact factors, and arithmetic anchoring. The two streams stay synchronized through shared entity IDs, mirrored factor slots, and cross-projections that keep approximate vectors tethered to stable prime signatures.
