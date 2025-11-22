@@ -42,11 +42,22 @@ def _get_encoder():
     return model
 
 
-def _cosine_similarity(vec_a: np.ndarray, vec_b: np.ndarray) -> float:
-    denom = (np.linalg.norm(vec_a) * np.linalg.norm(vec_b))
-    if denom == 0:
+def _normalize_embedding(vec: np.ndarray) -> np.ndarray:
+    norm = np.linalg.norm(vec)
+    if norm == 0:
+        return vec
+    return vec / norm
+
+
+def _semantic_similarity(
+    query_vec: np.ndarray, candidate_vec: np.ndarray, *, normalized: bool = False
+) -> float:
+    if query_vec.size == 0 or candidate_vec.size == 0:
         return 0.0
-    return float(np.dot(vec_a, vec_b) / denom)
+    if not normalized:
+        query_vec = _normalize_embedding(query_vec)
+        candidate_vec = _normalize_embedding(candidate_vec)
+    return float(np.dot(query_vec, candidate_vec))
 
 
 def _extract_factors(value: Mapping[str, object] | None) -> Sequence[Mapping[str, object]]:
@@ -121,7 +132,7 @@ def fuzzy_retrieve(
     entity: str | None = None,
     memory_service: MemoryService,
     top_k: int = 5,
-    semantic_weight: float = 0.6,
+    semantic_weight: float = 0.45,
     max_delta: int = 2,
     min_overlap: int = 1,
 ) -> list[Mapping[str, object]]:
@@ -149,16 +160,17 @@ def fuzzy_retrieve(
             logger.exception("Failed to anchor query text; continuing without p-adic context")
 
     encoder = _get_encoder()
-    query_vec = encoder.encode(query)
+    query_vec = encoder.encode(query, normalize_embeddings=True)
 
     ranked: list[tuple[float, Mapping[str, object]]] = []
     for candidate in candidates:
         embedding = candidate.payload.get("embedding") if isinstance(candidate.payload, Mapping) else None
         if embedding is None:
-            embedding = encoder.encode(candidate.text)
-        embedding_vec = np.array(embedding)
+            embedding_vec = np.array(encoder.encode(candidate.text, normalize_embeddings=True))
+        else:
+            embedding_vec = _normalize_embedding(np.array(embedding))
 
-        semantic_sim = _cosine_similarity(query_vec, embedding_vec)
+        semantic_sim = _semantic_similarity(query_vec, embedding_vec, normalized=True)
 
         distance, overlap = p_adic_distance(
             query_factors,
