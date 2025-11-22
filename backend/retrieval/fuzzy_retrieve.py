@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Mapping, MutableMapping, Protocol, Sequence
@@ -31,15 +32,36 @@ class MemoryCandidate:
     payload: Mapping[str, object]
 
 
+DEFAULT_SEMANTIC_MODEL = os.getenv("SENTENCE_TRANSFORMER_MODEL", "all-MiniLM-L6-v2")
+DEFAULT_SEMANTIC_WEIGHT = 0.45
+
+
 @lru_cache(maxsize=1)
-def _get_encoder():
+def _get_encoder(model_name: str = DEFAULT_SEMANTIC_MODEL):
     """Lazily load the shared sentence transformer encoder."""
 
     from sentence_transformers import SentenceTransformer
 
-    model = SentenceTransformer("all-MiniLM-L6-v2")
-    logger.info("SentenceTransformer model loaded: all-MiniLM-L6-v2")
+    model = SentenceTransformer(model_name)
+    logger.info("SentenceTransformer model loaded", extra={"model_name": model_name})
     return model
+
+
+def _resolve_semantic_weight(value: float | None) -> float:
+    """Resolve the semantic weight from a parameter or environment variable."""
+
+    if value is None:
+        env_value = os.getenv("SEMANTIC_WEIGHT") or os.getenv("DUALSUBSTRATE_SEMANTIC_WEIGHT")
+        try:
+            value = float(env_value) if env_value is not None else DEFAULT_SEMANTIC_WEIGHT
+        except ValueError:
+            logger.warning("Invalid semantic weight in environment; using default", extra={"env_value": env_value})
+            value = DEFAULT_SEMANTIC_WEIGHT
+
+    if not 0.0 <= value <= 1.0:
+        raise ValueError("semantic_weight must be between 0 and 1")
+
+    return value
 
 
 def _normalize_embedding(vec: np.ndarray) -> np.ndarray:
@@ -132,7 +154,7 @@ def fuzzy_retrieve(
     entity: str | None = None,
     memory_service: MemoryService,
     top_k: int = 5,
-    semantic_weight: float = 0.45,
+    semantic_weight: float | None = None,
     max_delta: int = 2,
     min_overlap: int = 1,
 ) -> list[Mapping[str, object]]:
@@ -142,8 +164,7 @@ def fuzzy_retrieve(
     ``semantic_weight`` interpolates cosine similarity and p-adic similarity.
     """
 
-    if not 0.0 <= semantic_weight <= 1.0:
-        raise ValueError("semantic_weight must be between 0 and 1")
+    semantic_weight = _resolve_semantic_weight(semantic_weight)
 
     memories = list(memory_service.get_all_memories(entity))
     candidates = _prepare_candidates(memories)
