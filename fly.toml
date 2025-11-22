@@ -13,7 +13,7 @@ primary_region = "syd"
   destination = "/app/data"
 
 [processes]
-  app = "uvicorn api.main:app --host 0.0.0.0 --port 8080 --http h11"
+  app = "uvicorn backend.main:app --host 0.0.0.0 --port 8080 --http h11"
 
 [[services]]
   internal_port = 8080
