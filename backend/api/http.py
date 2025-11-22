@@ -7,6 +7,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from backend.api.schemas import LedgerEntrySchema
+from backend.api.logging_utils import log_operation
 from backend.fieldx_kernel import LedgerKey, LedgerStore
 from backend.fieldx_kernel.substrate import LedgerStoreV2
 from backend.search import service as search_service
@@ -46,24 +47,47 @@ def get_ledger_store(request: Request, db=Depends(get_db)) -> LedgerStoreV2:
 
 
 @router.post("/write", response_model=LedgerEntrySchema)
-def write_entry(entry: LedgerEntrySchema, store: LedgerStoreV2 = Depends(get_ledger_store)) -> LedgerEntrySchema:
+def write_entry(
+    request: Request,
+    entry: LedgerEntrySchema,
+    store: LedgerStoreV2 = Depends(get_ledger_store),
+) -> LedgerEntrySchema:
     """Persist a ledger entry in the shared store."""
 
-    model_entry = entry.to_model()
-    store.write(model_entry)
-    return LedgerEntrySchema.from_model(model_entry)
+    with log_operation(
+        LOGGER,
+        "ledger_write",
+        request=request,
+        namespace=entry.key.namespace,
+        identifier=entry.key.identifier,
+    ) as ctx:
+        model_entry = entry.to_model()
+        store.write(model_entry)
+        ctx.update({"ledger_key": model_entry.key.as_path()})
+        return LedgerEntrySchema.from_model(model_entry)
 
 
 @router.get("/read/{entry_id}", response_model=LedgerEntrySchema)
-def read_entry(entry_id: str, store: LedgerStoreV2 = Depends(get_ledger_store)) -> LedgerEntrySchema:
+def read_entry(
+    request: Request,
+    entry_id: str,
+    store: LedgerStoreV2 = Depends(get_ledger_store),
+) -> LedgerEntrySchema:
     """Return a ledger entry for the provided identifier."""
 
-    key = parse_key(entry_id)
-    record = store.read(key.as_path())
-    if record is None:
-        raise HTTPException(status_code=404, detail="Entry not found")
+    with log_operation(
+        LOGGER,
+        "ledger_read",
+        request=request,
+        ledger_key=entry_id,
+    ) as ctx:
+        key = parse_key(entry_id)
+        record = store.read(key.as_path())
+        if record is None:
+            raise HTTPException(status_code=404, detail="Entry not found")
 
-    return LedgerEntrySchema.from_model(record)
+        ctx.update({"namespace": key.namespace, "identifier": key.identifier})
+        return LedgerEntrySchema.from_model(record)
 
 
 @router.post("/debug/ledger/write", response_model=LedgerEntrySchema)
@@ -92,47 +116,47 @@ def search_entries(
     cleaned_query = (q or "").strip()
     cleaned_mode = (mode or "any").strip().lower()
 
-    try:
-        if cleaned_mode not in {"any", "all"}:
-            raise ValueError("mode must be 'any' or 'all'")
-        if cleaned_query:
-            search_results = search_service.search(
-                cleaned_query,
-                store=store,
-                token_index=token_index,
-                mode=cleaned_mode,
-                limit=limit,
-            )
-            results = [
-                row
-                for row in search_results
-                if row.get("entry", {})
-                .get("key", {})
-                .get("namespace")
-                == entity
-            ]
-        else:
-            results = search_service.list_recent_entries(
-                store, entity=entity, limit=limit
-            )
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    with log_operation(
+        LOGGER,
+        "search",
+        request=request,
+        entity=entity,
+        query=cleaned_query,
+        mode=cleaned_mode,
+        limit=limit,
+    ) as ctx:
+        try:
+            if cleaned_mode not in {"any", "all"}:
+                raise ValueError("mode must be 'any' or 'all'")
+            if cleaned_query:
+                search_results = search_service.search(
+                    cleaned_query,
+                    store=store,
+                    token_index=token_index,
+                    mode=cleaned_mode,
+                    limit=limit,
+                )
+                results = [
+                    row
+                    for row in search_results
+                    if row.get("entry", {})
+                    .get("key", {})
+                    .get("namespace")
+                    == entity
+                ]
+            else:
+                results = search_service.list_recent_entries(
+                    store, entity=entity, limit=limit
+                )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    payload = {"query": cleaned_query, "mode": cleaned_mode, "results": results}
-    payload["entity"] = entity
+        payload = {"query": cleaned_query, "mode": cleaned_mode, "results": results}
+        payload["entity"] = entity
 
-    LOGGER.info(
-        "Search request handled",
-        extra={
-            "entity": entity,
-            "query": cleaned_query,
-            "mode": cleaned_mode,
-            "limit": limit,
-            "result_count": len(results),
-        },
-    )
+        ctx.update({"result_count": len(results)})
 
-    return payload
+        return payload
 
 
 __all__ = [
