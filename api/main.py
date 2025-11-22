@@ -14,7 +14,11 @@ from contextlib import asynccontextmanager
 # ---------- imports ----------
 import flow_rule  # our Rust wheel
 from core import core as core_rs  # PyO3 bindings (quaternion pack/rotate)
-from core.ledger import Ledger, PRIME_ARRAY  # the RocksDB wrapper we wrote earlier
+from core.ledger import (
+    Ledger,
+    PRIME_ARRAY,
+    _preview_text,
+)
 from core.routers import score_router
 from deps import require_key, limiter
 from slowapi.errors import RateLimitExceeded
@@ -523,28 +527,97 @@ def build_search_index_endpoint(
     return {"status": "indexed", **payload}
 
 
+def _latest_memories_for_entity(
+    ledger: Ledger, entity: str, *, limit: int = 50
+) -> List[Dict[str, object]]:
+    """Return the most recent body memories for ``entity``."""
+
+    doc = ledger.entity_document(entity)
+    slots = doc.get("slots") if isinstance(doc, dict) else {}
+    body_bucket = slots.get("body") if isinstance(slots, dict) else {}
+
+    entries: List[tuple[int, Dict[str, object]]] = []
+    if isinstance(body_bucket, dict):
+        for prime_key, payload in body_bucket.items():
+            try:
+                prime = int(prime_key)
+            except (TypeError, ValueError):
+                continue
+            if not isinstance(payload, dict):
+                continue
+
+            text_value = payload.get("text") or payload.get("value") or ""
+            updated_at = payload.get("updated_at") or payload.get("timestamp") or 0
+            try:
+                timestamp = int(updated_at)
+            except (TypeError, ValueError):
+                timestamp = 0
+
+            entries.append(
+                (
+                    timestamp,
+                    {
+                        "entity": entity,
+                        "prime": prime,
+                        "score": 0.0,
+                        "snippet": _preview_text(text_value),
+                    },
+                )
+            )
+
+    ranked = sorted(entries, key=lambda row: row[0], reverse=True)
+    trimmed = ranked[:limit] if limit and limit > 0 else ranked
+    return [row[1] for row in trimmed]
+
+
 @app.get("/search")
 def search(
     request: Request,
-    q: str = Query(..., description="Query string to match across ledger slots."),
+    entity: str | None = Query(None, description="Entity scope for the search."),
+    q: str | None = Query(None, description="Query string to match across ledger slots."),
     mode: str = Query(
         "all",
         description="Search scope: s1, s2, body, slots, recall, or all",
     ),
     limit: int = Query(50, ge=1, le=200, description="Maximum number of results to return."),
-    entity: str | None = Query(None, description="Optional entity scope override."),
     _: str = Depends(require_key),
 ):
     ledger = get_ledger(_ledger_id(request))
-    target_entity = (entity or request.headers.get(LEDGER_HEADER) or "").strip()
+    target_entity = _entity_from_request(entity, request, allow_default=True)
+
+    normalized_query = (q or "").strip()
+    normalized_mode = (mode or "").strip().lower() or "all"
+
     try:
-        results = ledger.search_slots(q, mode, limit=limit)
+        if normalized_query:
+            results = ledger.search_slots(normalized_query, normalized_mode, limit=limit)
+            results = [
+                row for row in results if row.get("entity") == target_entity
+            ]
+        else:
+            results = _latest_memories_for_entity(
+                ledger, target_entity, limit=limit
+            )
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
 
-    payload = {"query": q, "mode": mode, "results": results}
-    if target_entity:
-        payload["entity"] = target_entity
+    payload = {
+        "query": normalized_query,
+        "mode": normalized_mode,
+        "results": results,
+        "entity": target_entity,
+    }
+
+    logger.info(
+        "Search request handled",
+        extra={
+            "entity": target_entity,
+            "query": normalized_query,
+            "mode": normalized_mode,
+            "limit": limit,
+            "result_count": len(results),
+        },
+    )
     return payload
 
 

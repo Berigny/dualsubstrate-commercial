@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from backend.api.schemas import LedgerEntrySchema
@@ -14,6 +16,7 @@ router = APIRouter(prefix="/ledger", tags=["ledger"])
 search_router = APIRouter(tags=["search"])
 
 debug_ledger_store = LedgerStore()
+LOGGER = logging.getLogger(__name__)
 
 
 def parse_key(key_path: str) -> LedgerKey:
@@ -75,27 +78,60 @@ def debug_write_entry(entry: LedgerEntrySchema) -> LedgerEntrySchema:
 @search_router.get("/search")
 def search_entries(
     request: Request,
-    q: str = Query(..., description="Query string to match against metadata."),
+    entity: str = Query(..., description="Logical entity context for the search."),
+    q: str | None = Query(None, description="Query string to match against metadata."),
     mode: str = Query(
         "any",
         description="Set combination strategy: 'any' (union) or 'all' (intersection).",
     ),
     limit: int = Query(50, ge=1, le=200, description="Maximum number of results."),
-    entity: str | None = Query(None, description="Optional logical entity context."),
     store: LedgerStoreV2 = Depends(get_ledger_store),
 ):
     token_index = TokenPrimeIndex(request.app)
 
+    cleaned_query = (q or "").strip()
+    cleaned_mode = (mode or "any").strip().lower()
+
     try:
-        results = search_service.search(
-            q, store=store, token_index=token_index, mode=mode, limit=limit
-        )
+        if cleaned_mode not in {"any", "all"}:
+            raise ValueError("mode must be 'any' or 'all'")
+        if cleaned_query:
+            search_results = search_service.search(
+                cleaned_query,
+                store=store,
+                token_index=token_index,
+                mode=cleaned_mode,
+                limit=limit,
+            )
+            results = [
+                row
+                for row in search_results
+                if row.get("entry", {})
+                .get("key", {})
+                .get("namespace")
+                == entity
+            ]
+        else:
+            results = search_service.list_recent_entries(
+                store, entity=entity, limit=limit
+            )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    payload = {"query": q, "mode": mode, "results": results}
-    if entity:
-        payload["entity"] = entity
+    payload = {"query": cleaned_query, "mode": cleaned_mode, "results": results}
+    payload["entity"] = entity
+
+    LOGGER.info(
+        "Search request handled",
+        extra={
+            "entity": entity,
+            "query": cleaned_query,
+            "mode": cleaned_mode,
+            "limit": limit,
+            "result_count": len(results),
+        },
+    )
+
     return payload
 
 
