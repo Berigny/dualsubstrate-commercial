@@ -25,10 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Smoke test – REST /schema endpoint
-        env:
-          DUALSUBSTRATE_API_KEY: ${{ secrets.DUALSUBSTRATE_API_KEY }}
+      - name: Smoke test – REST health endpoint
         run: |
-          curl -f -H "x-api-key: ${DUALSUBSTRATE_API_KEY}" \
-               https://dualsubstrate-commercial.fly.dev/schema?entity=demo_user \
-               > /dev/null && echo "✅ API up" || (echo "❌ API down" && exit 1)
+          curl -f https://dualsubstrate-commercial.fly.dev/health > /dev/null \
+            && echo "✅ API healthy" || (echo "❌ API down" && exit 1)
