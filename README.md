@@ -6,6 +6,44 @@
 
 Fast path to production for the DualSubstrate service. This README tracks the commercial Fly deployment, front-end hookups (see the [Chat UI repo](https://github.com/Berigny/chat)), and the roadmap toward the next back-end upgrade that operationalizes the eight-equation memoir below.
 
+## What changed in this drop
+
+- **Dedicated backend service (`backend/main.py`)** now runs the websocket proxy, ledger gateways, governance evaluators, and Streamlit/debug tooling off the same FastAPI app. Use this service when wiring the latest `chat` repo – it supersedes the earlier `api/main.py` surface for these flows.
+- **Token-aware ledger search** lives under `backend/search/` with an inverted `TokenPrimeIndex`, background reindex helper, and `/search` endpoint for direct debugging.
+- **Governance and ethics APIs** (`/coherence/evaluate`, `/ethics/evaluate`) expose the Field-X coherence lattice and policy engine so agents can justify or deny actions.
+- **Admin + debug helpers** (`/admin/reindex`, `/ledger/debug/ledger/write`) let you rebuild the search index or hydrate entries without touching RocksDB directly.
+
+## Repository map (active services)
+
+| Path | Purpose | How to run |
+| --- | --- | --- |
+| `backend/main.py` | FastAPI surface for websocket salience proxy, ledger/search/governance endpoints, admin tools. | `APP_MODULE=backend.main:app make run` or `uvicorn backend.main:app --reload` |
+| `api/main.py` | Original flow-rule ledger API (anchor/search/assemble/etc). Still available for compatibility. | `make run` (defaults to `api.main:app`) |
+| `backend/search/` | Token index + search orchestration used by the backend service. | Loaded automatically by `backend.main`. |
+
+To make sure you are extending the latest backend instead of the legacy surface:
+
+1. `git pull` to fetch `main`.
+2. Work from `/Users/davidberigny/Documents/GitHub/dualsubstrate-commercial/backend`.
+3. Start the service with `APP_MODULE=backend.main:app make run` (or run uvicorn directly).
+4. Hit `http://localhost:8000/health` to confirm the backend surface is serving the new endpoints before making changes.
+
+## Backend endpoints
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/health` | Simple readiness probe for the backend service. |
+| `POST` | `/ledger/write` | Store a `LedgerEntry` (persisted in RocksDB + token index). |
+| `GET` | `/ledger/read/{namespace:identifier}` | Retrieve the stored entry for a composite key. |
+| `POST` | `/ledger/debug/ledger/write` | Write to the in-memory ledger store for local experiments. |
+| `GET` | `/search?q=` | Token-prime search across ledger entries (`mode=any|all`, optional `limit`). |
+| `GET` | `/admin/reindex` | Rebuild the search/token index for the current RocksDB snapshot. |
+| `POST` | `/coherence/evaluate` | Run the Field-X lattice coherence analyzer on an `ActionRequest`. |
+| `POST` | `/ethics/evaluate` | Score an action via the policy engine and grace model (lawfulness + permission). |
+| `POST/GET` | `/qp/{key_hex}` | Existing quickstore endpoints retained for binary blobs. |
+
+The `chat` repo’s connectivity tab now expects `/ledger/*`, `/search`, and `/admin/reindex` from this backend. After anchoring at least one transcript, press “Build search index” (calls `/admin/reindex`) once per ledger to sync the token cache, then use `/search` for recall debugging.
+
 ## Dual-substrate architecture
 
 **Signal split.** A continuous \(\mathbb{R}\) substrate handles gradient-driven pattern search and embedding alignment, while the discrete \(\mathbb{Q}_p\) prime ledger preserves symbolic identity, exact factors, and arithmetic anchoring. The two streams stay synchronized through shared entity IDs, mirrored factor slots, and cross-projections that keep approximate vectors tethered to stable prime signatures.
