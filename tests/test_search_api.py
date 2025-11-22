@@ -53,7 +53,9 @@ def test_search_indexes_written_entry(search_client):
         search_client, text="Dual Substrate ledger entry with explicit metadata"
     )
 
-    resp = search_client.get("/search", params={"q": "Dual Substrate"})
+    resp = search_client.get(
+        "/search", params={"entity": "default", "q": "Dual Substrate"}
+    )
     assert resp.status_code == 200, resp.text
 
     payload = resp.json()
@@ -79,7 +81,10 @@ def test_search_mode_all_requires_all_tokens(search_client):
     )
     entry_partial = _write_entry(search_client, text="Dual channel only")
 
-    any_resp = search_client.get("/search", params={"q": "Dual Substrate", "mode": "any"})
+    any_resp = search_client.get(
+        "/search",
+        params={"entity": "default", "q": "Dual Substrate", "mode": "any"},
+    )
     assert any_resp.status_code == 200, any_resp.text
     any_ids = [row.get("entry_id") for row in any_resp.json().get("results", [])]
     assert entry_with_all in any_ids
@@ -87,7 +92,10 @@ def test_search_mode_all_requires_all_tokens(search_client):
     scores = [row["score"] for row in any_resp.json()["results"] if row.get("entry_id") in {entry_with_all, entry_partial}]
     assert scores == sorted(scores, reverse=True)
 
-    all_resp = search_client.get("/search", params={"q": "Dual Substrate", "mode": "all"})
+    all_resp = search_client.get(
+        "/search",
+        params={"entity": "default", "q": "Dual Substrate", "mode": "all"},
+    )
     assert all_resp.status_code == 200, all_resp.text
     all_ids = [row.get("entry_id") for row in all_resp.json().get("results", [])]
     assert entry_with_all in all_ids
@@ -101,7 +109,9 @@ def test_search_indexes_body_metadata(search_client):
         metadata={"body": {"text": "Dual Substrate narrative in body content"}},
     )
 
-    resp = search_client.get("/search", params={"q": "Dual Substrate"})
+    resp = search_client.get(
+        "/search", params={"entity": "default", "q": "Dual Substrate"}
+    )
     assert resp.status_code == 200, resp.text
     results = resp.json().get("results", [])
     assert any(row.get("entry_id") == entry_id and row.get("score", 0) > 0 for row in results)
@@ -112,6 +122,44 @@ def test_search_rejects_unknown_mode(search_client):
 
     resp = search_client.get(
         "/search",
-        params={"q": "Dual Substrate", "mode": "unsupported"},
+        params={"entity": "default", "q": "Dual Substrate", "mode": "unsupported"},
     )
     assert resp.status_code == 422
+
+
+def test_search_lists_recent_entries_when_query_missing(search_client):
+    resp = search_client.get("/search", params={"entity": "demo", "limit": 50})
+    assert resp.status_code == 200
+
+    payload = resp.json()
+    assert payload.get("query") == ""
+    assert payload.get("entity") == "demo"
+    assert payload.get("mode") == "any"
+    assert payload.get("results") == []
+
+
+def test_search_filters_results_by_entity(search_client):
+    entity = "alpha"
+    other_entity = "beta"
+    matching_entry = _write_entry(
+        search_client,
+        text="Alpha entity meeting notes",
+        namespace=entity,
+        metadata={"entity": entity},
+    )
+    _write_entry(
+        search_client,
+        text="Beta entity unrelated notes",
+        namespace=other_entity,
+        metadata={"entity": other_entity},
+    )
+
+    resp = search_client.get(
+        "/search", params={"entity": entity, "q": "notes", "limit": 10}
+    )
+    assert resp.status_code == 200
+    payload = resp.json()
+
+    results = payload.get("results", [])
+    assert all(row.get("entity") == entity for row in results)
+    assert any(row.get("entry_id") == matching_entry for row in results)

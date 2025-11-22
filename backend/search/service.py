@@ -148,6 +148,40 @@ def full_text_score(text: str, tokens: Sequence[str]) -> tuple[float, str]:
     return score, snippet
 
 
+def _entity_for_entry(entry) -> str:
+    metadata = getattr(entry, "state", None)
+    if metadata is not None:
+        metadata = getattr(entry.state, "metadata", None) or {}
+        entity = metadata.get("entity")
+        if entity:
+            return str(entity)
+
+    key = getattr(entry, "key", None)
+    if key is not None and getattr(key, "namespace", None):
+        return str(key.namespace)
+
+    return ""
+
+
+def _entity_from_result_row(row: dict) -> str:
+    if not isinstance(row, dict):
+        return ""
+
+    if row_entity := row.get("entity"):
+        return str(row_entity)
+
+    entry = row.get("entry") or {}
+    metadata = (entry.get("state") or {}).get("metadata") or {}
+    if metadata.get("entity"):
+        return str(metadata["entity"])
+
+    key_data = entry.get("key") or {}
+    if key_data.get("namespace"):
+        return str(key_data["namespace"])
+
+    return ""
+
+
 def _scan_all_entries(store, tokens: Sequence[str], *, limit: int) -> list[dict]:
     """Scan all ledger entries when the inverted index yields no candidates."""
 
@@ -196,6 +230,63 @@ def _scan_all_entries(store, tokens: Sequence[str], *, limit: int) -> list[dict]
     logger.debug(
         "Linear scan results prepared",
         extra={"result_count": len(final_results), "scanned_entries": len(results)},
+    )
+    return final_results
+
+
+def list_recent_entries(store, *, entity: str, limit: int | None = None) -> list[dict]:
+    """Return the latest ledger entries for ``entity`` sorted by recency."""
+
+    effective_limit = limit or 50
+    try:
+        with store._lock:  # type: ignore[attr-defined]
+            snapshots = list(store._db.items())  # type: ignore[attr-defined]
+    except Exception:  # pragma: no cover - defensive fallback if store internals change
+        return []
+
+    results: list[dict] = []
+    for raw_key, raw_entry in snapshots:
+        try:
+            entry_id = raw_key.decode() if isinstance(raw_key, (bytes, bytearray)) else str(raw_key)
+            entry = store._decode(raw_entry)  # type: ignore[attr-defined]
+        except Exception:  # pragma: no cover - skip malformed rows defensively
+            continue
+
+        if _entity_for_entry(entry) != entity:
+            continue
+
+        results.append(
+            {
+                "entry": {
+                    "key": {
+                        "namespace": entry.key.namespace,
+                        "identifier": entry.key.identifier,
+                    },
+                    "state": {
+                        "coordinates": entry.state.coordinates,
+                        "phase": entry.state.phase,
+                        "metadata": entry.state.metadata,
+                    },
+                    "created_at": entry.created_at.isoformat(),
+                    "notes": entry.notes,
+                },
+                "score": 0.0,
+                "snippet": "",
+                "entry_id": entry_id,
+                "entity": entity,
+            }
+        )
+
+    sorted_results = sorted(results, key=lambda row: row["entry"]["created_at"], reverse=True)
+    final_results = sorted_results[:effective_limit]
+    logger.debug(
+        "Prepared recent entries listing",
+        extra={
+            "entity": entity,
+            "result_count": len(final_results),
+            "requested_limit": limit,
+            "effective_limit": effective_limit,
+        },
     )
     return final_results
 
@@ -291,8 +382,37 @@ def search(
     return final_results
 
 
+def filter_results_for_entity(results: Sequence[dict], entity: str) -> list[dict]:
+    """Limit ``results`` to those matching ``entity``.
+
+    Results that match will also carry an ``entity`` field to support
+    downstream consumers that expect this attribute.
+    """
+
+    if not entity:
+        return list(results)
+
+    filtered: list[dict] = []
+    for row in results:
+        row_entity = _entity_from_result_row(row)
+        if row_entity != entity:
+            continue
+
+        normalised = dict(row)
+        normalised.setdefault("entity", entity)
+        filtered.append(normalised)
+
+    logger.debug(
+        "Filtered search results by entity",
+        extra={"entity": entity, "before": len(results), "after": len(filtered)},
+    )
+    return filtered
+
+
 __all__ = [
+    "filter_results_for_entity",
     "full_text_score",
+    "list_recent_entries",
     "search",
     "search_by_primes",
 ]
