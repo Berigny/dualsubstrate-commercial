@@ -95,7 +95,12 @@ def evaluate_coherence(
         action=request.action,
     ) as ctx:
         response = coherence_analyzer.evaluate(request)
-        ctx["coherence_score"] = response.coherence_score
+        ctx.update(
+            {
+                "coherence_score": response.coherence_score,
+                "parameter_count": len(request.parameters or {}),
+            }
+        )
         return response
 
 
@@ -138,7 +143,13 @@ def evaluate_ethics(
             permitted=permitted,
         )
 
-        ctx.update({"ledger_id": ledger_id, "permitted": response.permitted})
+        ctx.update(
+            {
+                "ledger_id": ledger_id,
+                "permitted": response.permitted,
+                "law_count": len(engine.laws),
+            }
+        )
 
         return response
 

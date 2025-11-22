@@ -7,11 +7,39 @@ from contextlib import contextmanager
 from time import perf_counter
 from typing import Dict, Generator
 
-from fastapi import Request
+from fastapi import HTTPException, Request
 
 
 def _duration_ms(start: float) -> float:
     return round((perf_counter() - start) * 1000, 3)
+
+
+def _request_context(request: Request | None) -> Dict[str, object]:
+    """Extract a minimal structured context from an HTTP request."""
+
+    if request is None:
+        return {}
+
+    client_host = getattr(request.client, "host", None)
+
+    context: Dict[str, object] = {
+        "path": request.url.path,
+        "method": request.method,
+    }
+    if client_host:
+        context["client"] = client_host
+
+    user_agent = request.headers.get("user-agent")
+    if user_agent:
+        context["user_agent"] = user_agent
+
+    request_id = request.headers.get("x-request-id") or request.headers.get(
+        "x-correlation-id"
+    )
+    if request_id:
+        context["request_id"] = request_id
+
+    return context
 
 
 @contextmanager
@@ -37,14 +65,23 @@ def log_operation(
     """
 
     start = perf_counter()
-    base: Dict[str, object] = {"operation": operation, **context}
-
-    if request is not None:
-        base.setdefault("path", request.url.path)
-        base.setdefault("method", request.method)
+    base: Dict[str, object] = {"operation": operation, **_request_context(request), **context}
 
     try:
         yield base
+    except HTTPException as exc:
+        logger.warning(
+            "%s failed",  # Avoid traceback for expected HTTP errors
+            operation,
+            extra={
+                **base,
+                "status": "error",
+                "status_code": exc.status_code,
+                "duration_ms": _duration_ms(start),
+                "error": exc.detail,
+            },
+        )
+        raise
     except Exception as exc:  # pragma: no cover - defensive logging
         logger.exception(
             "%s failed",
